@@ -6,6 +6,7 @@ import sys
 import threading
 import os
 from item import Item
+from skills import all_skills, class_name, newly_unlocked_skills, unlocked_skills
 
 HERO_SPRITES = {
     "sword": "assets/hero-sprites/sword.png",
@@ -74,7 +75,7 @@ except ImportError:
 class VictoryScreen(tk.Toplevel):
     """JRPG-inspired battle results screen."""
 
-    def __init__(self, parent, player, monster_name, exp, coins, loot=None, leveled_up=False):
+    def __init__(self, parent, player, monster_name, exp, coins, loot=None, leveled_up=False, new_skills=()):
         super().__init__(parent)
         self.player = player
         self.is_final_victory = monster_name == "Demon King Koji"
@@ -116,7 +117,7 @@ class VictoryScreen(tk.Toplevel):
         banner.create_text(450, 55, text="VICTORY", font=("Georgia", 36, "bold"), fill="#ffd66b")
         victory_subtitle = "THE PRIMORDIAL THRONE HAS FALLEN" if self.is_final_victory else f"{monster_name.upper()} DEFEATED"
         banner.create_text(450, 101, text=victory_subtitle, font=("Arial", 12, "bold"), fill="#d9e0f2")
-        banner.create_text(450, 134, text="BATTLE RESULTS", font=("Arial", 9, "bold"), fill="#77839f")
+        banner.create_text(450, 134, text=f"{class_name(player).upper()}  •  BATTLE RESULTS", font=("Arial", 9, "bold"), fill="#77839f")
 
         if leveled_up:
             banner.create_text(760, 70, text="LEVEL UP!", font=("Arial", 13, "bold"), fill="#080b13", tags="level_badge")
@@ -135,6 +136,9 @@ class VictoryScreen(tk.Toplevel):
         loot_name = loot.item_name if loot else "No item dropped"
         loot_color = "#c49cff" if loot else "#68738c"
         self._reward_row(results, "TREASURE", loot_name, loot_color)
+        if new_skills:
+            names = ", ".join(skill.name for skill in new_skills)
+            self._reward_row(results, "NEW SKILL", names, "#c49cff")
 
         progress = tk.Frame(body, bg="#111724", highlightbackground="#303b55", highlightthickness=1, width=330)
         progress.pack(side=tk.RIGHT, fill=tk.BOTH, padx=(10, 0))
@@ -194,8 +198,8 @@ class VictoryScreen(tk.Toplevel):
         self.wait_window(self)
 
     def _reward_row(self, parent, title, value, color):
-        row = tk.Frame(parent, bg="#171e2d", height=65)
-        row.pack(fill=tk.X, padx=18, pady=5)
+        row = tk.Frame(parent, bg="#171e2d", height=55)
+        row.pack(fill=tk.X, padx=18, pady=3)
         row.pack_propagate(False)
         tk.Frame(row, bg=color, width=4).pack(side=tk.LEFT, fill=tk.Y)
         tk.Label(row, text=title, font=("Arial", 9, "bold"), fg="#8591aa", bg="#171e2d").pack(side=tk.LEFT, padx=16)
@@ -263,6 +267,10 @@ class BattlePanel(tk.Toplevel):
         self._scene_height = 1
         self._idle_offset = 0
         self._sprite_hit_shift = {"player": 0, "monster": 0}
+        self.skill_guard_bonus = 0
+        self.evade_next_attack = False
+        self.next_attack_bonus = 0
+        self.enemy_weaken = 0
         
         self.title("Battle!" if not is_boss else "Final Battle!")
         self.geometry("1100x720")
@@ -410,7 +418,7 @@ class BattlePanel(tk.Toplevel):
         self.item_btn = make_action_btn("[I]  ITEM", self.player_item, 1, 1)
         self.def_btn = make_action_btn("[D]  DEFEND", self.player_defend, 2, 0)
         self.run_btn = make_action_btn("[R]  ESCAPE", self.player_run, 2, 1)
-        self.skill_btn = make_action_btn("[S]  ARCANE SKILL  •  20 MP", self.player_skill, 3, 0, 2, color="#63369a", hover="#8550c5")
+        self.skill_btn = make_action_btn("[S]  CLASS SKILLS", self.player_skill, 3, 0, 2, color="#63369a", hover="#8550c5")
 
         if self.is_boss:
             self.run_btn.config(text="[R]  NO ESCAPE", state=tk.DISABLED, bg="#191e2a")
@@ -541,7 +549,7 @@ class BattlePanel(tk.Toplevel):
 
     def update_player_stats(self):
         visible_hp = max(0, self.player.hp)
-        self.p_name_lbl.config(text=f"{self.player.name}  •  LV {self.player.level}")
+        self.p_name_lbl.config(text=f"{self.player.name}  •  LV {self.player.level}  •  {class_name(self.player)}")
         self.p_hp_lbl.config(text=f"HP   {visible_hp} / {self.player.max_hp}")
         self.p_hp_bar['maximum'] = self.player.max_hp
         self.p_hp_bar['value'] = visible_hp
@@ -550,8 +558,13 @@ class BattlePanel(tk.Toplevel):
         self.p_mana_bar['value'] = self.player.mana
         
         # Dynamic Buttons
-        can_skill = self.player.mana >= 20
-        self.skill_btn.config(state=tk.NORMAL if can_skill else tk.DISABLED, bg=self.skill_btn.base_color if can_skill else "#191e2a")
+        can_cast = any(skill.mp_cost <= self.player.mana for skill in unlocked_skills(self.player))
+        self.skill_btn.base_color = "#63369a" if can_cast else "#332741"
+        self.skill_btn.config(
+            state=tk.NORMAL,
+            text=f"[S]  {class_name(self.player).upper()} SKILLS  •  {self.player.mana} MP",
+            bg=self.skill_btn.base_color,
+        )
         
         consumables = [item for item in self.player.inventory if getattr(item, 'is_consumable', False)]
         can_item = len(consumables) > 0
@@ -576,10 +589,14 @@ class BattlePanel(tk.Toplevel):
     def player_attack(self):
         play_sound("attack")
         weapon_dmg = self.player.equipped_weapon.additional_damage if getattr(self.player, 'equipped_weapon', None) else 0
-        damage = 15 + (self.player.level * 5) + int(weapon_dmg) + random.randint(0, 9)
+        damage = 15 + (self.player.level * 5) + int(weapon_dmg) + random.randint(0, 9) + self.next_attack_bonus
+        used_bonus = self.next_attack_bonus
+        self.next_attack_bonus = 0
         self.monster_hp -= damage
         self._animate_hit("monster", damage)
         self.append_text(f"You strike {self.monster_name} for {damage} damage.", "player")
+        if used_bonus:
+            self.append_text(f"War Cry adds {used_bonus} bonus damage.", "skill")
         self.update_monster_stats()
         
         if self.monster_hp <= 0:
@@ -593,8 +610,7 @@ class BattlePanel(tk.Toplevel):
     def player_defend(self):
         self.append_text("You take a guarded stance.", "player")
         play_sound("damage")
-        armor_def = self.player.equipped_armor.defense_bonus if getattr(self.player, 'equipped_armor', None) else 0
-        reduced = max(0, self.monster_attack - random.randint(0, 4) - 5 - int(armor_def))
+        reduced = self._incoming_damage(defending=True)
         self.player.hp -= reduced
         self._animate_hit("player", reduced)
         self.append_text(f"{self.monster_name} attacks, but your guard reduces it to {reduced} damage.", "enemy")
@@ -604,25 +620,108 @@ class BattlePanel(tk.Toplevel):
             self.player_defeated()
 
     def player_skill(self):
-        if self.player.mana >= 20:
-            play_sound("skill")
-            skill_dmg = 40 + random.randint(0, 19)
-            self.player.use_mana(20)
-            self.monster_hp -= skill_dmg
-            self._animate_hit("monster", skill_dmg, "#c69cff")
-            self.append_text(f"Arcane energy erupts for {skill_dmg} damage!", "skill")
-            self.update_monster_stats()
-            self.update_player_stats()
-            
-            if self.monster_hp <= 0:
-                self.append_text(f"{self.monster_name} has been defeated!", "reward")
-                self.reward_player()
-                self.destroy()
+        skill_window = tk.Toplevel(self)
+        skill_window.title(f"{class_name(self.player)} Skills")
+        skill_window.geometry("680x500")
+        skill_window.resizable(False, False)
+        skill_window.configure(bg="#080b13")
+        skill_window.transient(self)
+        skill_window.grab_set()
+
+        header = tk.Frame(skill_window, bg="#111724", height=76, highlightbackground="#343e56", highlightthickness=1)
+        header.pack(fill=tk.X)
+        header.pack_propagate(False)
+        copy = tk.Frame(header, bg="#111724")
+        copy.pack(side=tk.LEFT, padx=24, pady=12)
+        tk.Label(copy, text=f"{class_name(self.player).upper()} SKILL DECK", font=("Georgia", 18, "bold"), fg="#f3f5ff", bg="#111724").pack(anchor="w")
+        tk.Label(copy, text=f"LEVEL {self.player.level}  •  {self.player.mana} MP AVAILABLE", font=("Arial", 9, "bold"), fg="#b994ff", bg="#111724").pack(anchor="w")
+
+        body = tk.Frame(skill_window, bg="#080b13")
+        body.pack(fill=tk.BOTH, expand=True, padx=16, pady=16)
+        skill_list = tk.Listbox(body, bg="#0d121c", fg="#e4e8f3", selectbackground="#4c3569", selectforeground="#ffffff", font=("Consolas", 10, "bold"), relief=tk.FLAT, activestyle="none", width=34)
+        skill_list.pack(side=tk.LEFT, fill=tk.BOTH, padx=(0, 8))
+        details = tk.Frame(body, bg="#141a27", width=320, highlightbackground="#343e56", highlightthickness=1)
+        details.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=(8, 0))
+        details.pack_propagate(False)
+        name_lbl = tk.Label(details, text="SELECT A SKILL", wraplength=275, font=("Georgia", 18, "bold"), fg="#f3f5ff", bg="#141a27")
+        name_lbl.pack(padx=20, pady=(28, 6))
+        cost_lbl = tk.Label(details, text="", font=("Consolas", 10, "bold"), fg="#b994ff", bg="#141a27")
+        cost_lbl.pack()
+        description_lbl = tk.Label(details, text="Choose an ability to inspect it.", wraplength=270, justify=tk.LEFT, font=("Arial", 10), fg="#aab4c9", bg="#141a27")
+        description_lbl.pack(padx=22, pady=20)
+        cast_btn = tk.Button(details, text="SELECT SKILL", bg="#63369a", fg="#ffffff", activebackground="#8550c5", activeforeground="#ffffff", relief=tk.FLAT, bd=0, font=("Arial", 10, "bold"), cursor="hand2", pady=11, state=tk.DISABLED)
+        cast_btn.pack(side=tk.BOTTOM, fill=tk.X, padx=20, pady=20)
+
+        skills = all_skills(self.player)
+        for skill in skills:
+            marker = "READY" if skill.unlock_level <= self.player.level else f"LV {skill.unlock_level}"
+            skill_list.insert(tk.END, f" {marker:<6}  {skill.name}")
+
+        def on_select(_event=None):
+            selection = skill_list.curselection()
+            if not selection:
                 return
-        else:
-            self.append_text("Not enough MP to channel the skill.", "enemy")
+            skill = skills[selection[0]]
+            unlocked = skill.unlock_level <= self.player.level
+            affordable = skill.mp_cost <= self.player.mana
+            name_lbl.config(text=skill.name)
+            cost_lbl.config(text=f"LEVEL {skill.unlock_level}  •  {skill.mp_cost} MP")
+            hits = f"\n\n{skill.hits} hits" if skill.hits > 1 else ""
+            damage = f"{skill.min_damage}-{skill.max_damage} damage per hit"
+            description_lbl.config(text=f"{skill.description}\n\n{damage}{hits}")
+            if not unlocked:
+                cast_btn.config(text=f"UNLOCKS AT LEVEL {skill.unlock_level}", state=tk.DISABLED, bg="#252b37")
+            elif not affordable:
+                cast_btn.config(text="NOT ENOUGH MP", state=tk.DISABLED, bg="#252b37")
+            else:
+                cast_btn.config(text="USE SKILL", state=tk.NORMAL, bg="#63369a", command=lambda chosen=skill: cast(chosen))
+
+        def cast(skill):
+            skill_window.destroy()
+            self.use_class_skill(skill)
+
+        skill_list.bind("<<ListboxSelect>>", on_select)
+        skill_list.bind("<Double-Button-1>", lambda _event: cast(skills[skill_list.curselection()[0]]) if skill_list.curselection() and skills[skill_list.curselection()[0]].unlock_level <= self.player.level and skills[skill_list.curselection()[0]].mp_cost <= self.player.mana else None)
+        skill_window.bind("<Escape>", lambda _event: skill_window.destroy())
+
+    def use_class_skill(self, skill):
+        if skill.unlock_level > self.player.level or not self.player.use_mana(skill.mp_cost):
+            self.append_text("That skill cannot be used right now.", "enemy")
             return
-            
+        play_sound("skill")
+        rolls = [random.randint(skill.min_damage, skill.max_damage) for _ in range(skill.hits)]
+        total_damage = sum(rolls)
+        self.monster_hp -= total_damage
+        self._animate_hit("monster", total_damage, "#c69cff")
+        hit_text = f" across {skill.hits} hits" if skill.hits > 1 else ""
+        self.append_text(f"{skill.name} deals {total_damage} damage{hit_text}!", "skill")
+
+        if skill.heal:
+            previous_hp = self.player.hp
+            self.player.hp = min(self.player.max_hp, self.player.hp + skill.heal)
+            healed = self.player.hp - previous_hp
+            self._show_floating_text(f"+{healed}", "player", "#67dca5")
+            self.append_text(f"Radiant energy restores {healed} HP.", "player")
+        if skill.guard:
+            self.skill_guard_bonus = skill.guard
+            self.append_text(f"Aegis reduces the next incoming hit by {skill.guard}.", "skill")
+        if skill.evade:
+            self.evade_next_attack = True
+            self.append_text("Windstep prepares an automatic evade.", "skill")
+        if skill.attack_bonus:
+            self.next_attack_bonus = skill.attack_bonus
+            self.append_text(f"War Cry empowers the next normal attack by {skill.attack_bonus}.", "skill")
+        if skill.weaken:
+            self.enemy_weaken = skill.weaken
+            self.append_text(f"The enemy's next attack is weakened by {skill.weaken}.", "skill")
+
+        self.update_monster_stats()
+        self.update_player_stats()
+        if self.monster_hp <= 0:
+            self.append_text(f"{self.monster_name} has been defeated!", "reward")
+            self.reward_player()
+            self.destroy()
+            return
         self.monster_turn()
 
     def player_run(self):
@@ -670,9 +769,14 @@ class BattlePanel(tk.Toplevel):
         use_btn.pack(pady=10, padx=20, fill=tk.X)
 
     def monster_turn(self):
+        if self.evade_next_attack:
+            self.evade_next_attack = False
+            self._show_floating_text("EVADE", "player", "#72baff")
+            self.append_text(f"You evade {self.monster_name}'s attack with Windstep!", "player")
+            self.update_player_stats()
+            return
         play_sound("damage")
-        armor_def = self.player.equipped_armor.defense_bonus if getattr(self.player, 'equipped_armor', None) else 0
-        taken = max(0, self.monster_attack + random.randint(0, 4) - int(armor_def))
+        taken = self._incoming_damage()
         self.player.hp -= taken
         self._animate_hit("player", taken)
         self.append_text(f"{self.monster_name} hits you for {taken} damage.", "enemy")
@@ -680,6 +784,21 @@ class BattlePanel(tk.Toplevel):
         
         if self.player.hp <= 0:
             self.player_defeated()
+
+    def _incoming_damage(self, defending=False):
+        armor_def = self.player.equipped_armor.defense_bonus if getattr(self.player, 'equipped_armor', None) else 0
+        defense_bonus = 5 + random.randint(0, 4) if defending else 0
+        taken = max(
+            0,
+            self.monster_attack + random.randint(0, 4)
+            - int(armor_def)
+            - defense_bonus
+            - self.skill_guard_bonus
+            - self.enemy_weaken,
+        )
+        self.skill_guard_bonus = 0
+        self.enemy_weaken = 0
+        return taken
 
     def player_defeated(self):
         self.append_text(f"You were defeated by {self.monster_name}.", "enemy")
@@ -711,4 +830,5 @@ class BattlePanel(tk.Toplevel):
             coins,
             loot=dropped_item,
             leveled_up=self.player.level > previous_level,
+            new_skills=newly_unlocked_skills(self.player, previous_level),
         )

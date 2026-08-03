@@ -22,9 +22,9 @@ class MainMenu:
     PURPLE = "#a977e8"
 
     WEAPONS = {
-        "Sword": {"description": "Balanced and reliable", "damage": 10.0, "attributes": "Sharp Blade", "sprite": "assets/hero-sprites/sword.png"},
-        "Bow": {"description": "Swift ranged strikes", "damage": 8.0, "attributes": "Ranged", "sprite": "assets/hero-sprites/bow.png"},
-        "Axe": {"description": "Slow, devastating power", "damage": 12.0, "attributes": "Heavy Hit", "sprite": "assets/hero-sprites/axe.png"},
+        "Sword": {"class": "Vanguard", "description": "Balanced offense and defense", "damage": 10.0, "attributes": "Sharp Blade", "sprite": "assets/hero-sprites/sword.png"},
+        "Bow": {"class": "Ranger", "description": "Multi-hit volleys and evasion", "damage": 8.0, "attributes": "Ranged", "sprite": "assets/hero-sprites/bow.png"},
+        "Axe": {"class": "Berserker", "description": "Overwhelming burst damage", "damage": 12.0, "attributes": "Heavy Hit", "sprite": "assets/hero-sprites/axe.png"},
     }
 
     def __init__(self, root):
@@ -166,7 +166,7 @@ class MainMenu:
                 weapon_images.append(image)
             except (tk.TclError, OSError):
                 image = ""
-            button = tk.Button(card, image=image, text=f"{name.upper()}\n\n{data['description']}\n+{data['damage']:.0f} starting damage", compound=tk.TOP, command=lambda weapon=name: select_weapon(weapon), bg=self.SURFACE, fg=self.TEXT, activebackground="#243149", activeforeground="#ffffff", relief=tk.FLAT, bd=0, font=("Arial", 10, "bold"), cursor="hand2", padx=12, pady=16)
+            button = tk.Button(card, image=image, text=f"{data['class'].upper()}\n{name}  •  {data['description']}\n+{data['damage']:.0f} starting damage", compound=tk.TOP, command=lambda weapon=name: select_weapon(weapon), bg=self.SURFACE, fg=self.TEXT, activebackground="#243149", activeforeground="#ffffff", relief=tk.FLAT, bd=0, font=("Arial", 10, "bold"), cursor="hand2", padx=12, pady=16)
             button.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
             button.bind("<Enter>", lambda event: event.widget.config(bg="#243149"))
             button.bind("<Leave>", lambda event: event.widget.config(bg=self.SURFACE))

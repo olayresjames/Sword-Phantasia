@@ -5,6 +5,7 @@ from tkinter import messagebox, ttk
 
 from battle_panel import BattlePanel, hero_sprite_path
 from item import Item
+from skills import CLASS_SKILLS, class_name, unlocked_skills
 
 
 class GamePanel(tk.Frame):
@@ -325,7 +326,7 @@ class GamePanel(tk.Frame):
         weapon = self.player.equipped_weapon if getattr(self.player, "equipped_weapon", None) else None
         armor = self.player.equipped_armor if getattr(self.player, "equipped_armor", None) else None
         self.hero_name_lbl.config(text=self.player.name)
-        self.level_lbl.config(text=f"LEVEL {self.player.level}")
+        self.level_lbl.config(text=f"LEVEL {self.player.level}  •  {class_name(self.player).upper()}  •  {len(unlocked_skills(self.player))}/4 SKILLS")
         self.gold_header_lbl.config(text=f"◆ {self.player.coins} G")
         self.hp_lbl.config(text=f"{max(0, self.player.hp)} / {self.player.max_hp}")
         self._animate_bar(self.hp_bar, max(0, self.player.hp), self.player.max_hp)
@@ -634,6 +635,14 @@ class GamePanel(tk.Frame):
         viewer.tag_configure("body", foreground="#c8d0e1")
         viewer.tag_configure("note", foreground=self.PURPLE)
 
+        skill_guide = [("CLASS SKILLS\n", "title")]
+        for data in CLASS_SKILLS.values():
+            skill_guide.append((f"{data['name']}\n", "heading"))
+            skill_guide.append((f"{data['identity']}\n", "body"))
+            for skill in data["skills"]:
+                skill_guide.append((f"LV {skill.unlock_level}  {skill.name}  •  {skill.mp_cost} MP\n", "key"))
+                skill_guide.append((f"{skill.description}\n", "body"))
+
         pages = {
             "GUIDE": [
                 ("SWORD PHANTASIA GUIDE\n", "title"),
@@ -681,6 +690,7 @@ class GamePanel(tk.Frame):
                 ("Double-click", "key"), ("   Equip, use, or purchase a selected item\n", "body"),
                 ("Enter / Space", "key"), ("   Continue from the victory screen\n", "body"),
             ],
+            "SKILLS": skill_guide,
             "FINAL BOSS": [
                 ("THE PRIMORDIAL THRONE\n", "title"),
                 ("Unlocking the Battle\n", "heading"),
