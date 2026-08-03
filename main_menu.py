@@ -86,9 +86,9 @@ class MainMenu:
         if not p_name or not p_name.strip():
             p_name = "Hero"
             
-        player = Character(p_name, 1)
-        
         wep_choice = choice_var.get()
+        player = Character(p_name, 1, starting_weapon=wep_choice)
+
         if wep_choice == "Sword":
             weapon = Item("Sword", "Sharp Blade", 10.0)
         elif wep_choice == "Bow":
@@ -106,7 +106,8 @@ class MainMenu:
         self.root.deiconify()
         self.root.title("Sword Phantasia")
         self.root.geometry("1024x768")
-        self.root.resizable(False, False)
+        self.root.minsize(1024, 700)
+        self.root.resizable(True, True)
         try:
             self.root.state('zoomed') # Maximizes on Windows
         except tk.TclError:

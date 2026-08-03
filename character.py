@@ -24,7 +24,7 @@ except ImportError:
         pass
 
 class Character:
-    def __init__(self, name, level=1):
+    def __init__(self, name, level=1, starting_weapon=None):
         self.name = name
         self.level = level
         self.max_hp = 100 + (level - 1) * 20
@@ -34,6 +34,7 @@ class Character:
         self.coins = 0
         self.inventory = []
         self.equipped_weapon = None
+        self.starting_weapon = starting_weapon
         self.equipped_armor = None
 
     def use_mana(self, amount):
@@ -71,6 +72,7 @@ class Character:
             "experience": self.experience,
             "coins": self.coins,
             "inventory": [item.to_dict() for item in self.inventory],
+            "starting_weapon": self.starting_weapon,
             "equipped_weapon": self.equipped_weapon.to_dict() if self.equipped_weapon else None,
             "equipped_armor": getattr(self, 'equipped_armor').to_dict() if getattr(self, 'equipped_armor', None) else None
         }
@@ -93,6 +95,14 @@ class Character:
         equipped_data = data.get("equipped_weapon")
         if equipped_data:
             char.equipped_weapon = Item.from_dict(equipped_data)
+        char.starting_weapon = data.get("starting_weapon")
+        if not char.starting_weapon and char.equipped_weapon:
+            # Older save files did not record the character's starting weapon.
+            weapon_name = char.equipped_weapon.item_name.lower()
+            char.starting_weapon = next(
+                (weapon for weapon in ("Sword", "Bow", "Axe") if weapon.lower() in weapon_name),
+                None
+            )
         armor_data = data.get("equipped_armor")
         if armor_data:
             char.equipped_armor = Item.from_dict(armor_data)
