@@ -690,7 +690,37 @@ class GamePanel(tk.Frame):
                 ("Warning\n", "heading"),
                 ("Demon King Koji has 500 HP, deals heavy damage, and cannot be escaped once the final battle begins.\n", "note"),
             ],
+            "SAVE GAME": [
+                ("SAVE YOUR JOURNEY\n", "title"),
+                ("Manual Save\n", "heading"),
+                ("Create an up-to-date save containing your level, EXP, gold, health, mana, inventory, and equipped gear. The existing save file will be updated.\n", "body"),
+                ("Autosave\n", "heading"),
+                ("The game automatically saves after ordinary encounters. Saving manually is recommended before shopping, upgrading equipment, or entering the Primordial Throne.\n", "body"),
+            ],
         }
+
+        save_area = tk.Frame(content, bg="#171e2d", highlightbackground=self.BORDER, highlightthickness=1)
+        save_summary = tk.Label(
+            save_area,
+            text=f"{self.player.name}  •  LEVEL {self.player.level}  •  {self.location_name}\nHP {self.player.hp}/{self.player.max_hp}    MP {self.player.mana}/100    GOLD {self.player.coins}",
+            justify=tk.LEFT,
+            font=("Consolas", 10, "bold"),
+            fg="#dce3f2",
+            bg="#171e2d",
+        )
+        save_summary.pack(side=tk.LEFT, padx=18, pady=15)
+        save_result = tk.Label(save_area, text="", font=("Arial", 9, "bold"), fg=self.GREEN, bg="#171e2d")
+        save_result.pack(side=tk.RIGHT, padx=12)
+
+        def save_from_options():
+            self.player.save_to_file()
+            self.save_status_lbl.config(text="SAVED", fg=self.GREEN)
+            self.append_text("Journey progress saved from Options.", "success")
+            self.show_toast("GAME SAVED")
+            save_result.config(text="SAVE COMPLETE")
+
+        save_button = tk.Button(save_area, text="SAVE NOW", command=save_from_options, bg=self.GOLD, fg="#171008", activebackground="#e4b94f", activeforeground="#171008", relief=tk.FLAT, bd=0, font=("Arial", 10, "bold"), cursor="hand2", padx=20, pady=10)
+        save_button.pack(side=tk.RIGHT, padx=12, pady=12)
 
         tab_buttons = {}
 
@@ -703,6 +733,10 @@ class GamePanel(tk.Frame):
             for tab_name, button in tab_buttons.items():
                 selected = tab_name == name
                 button.config(bg="#30415e" if selected else self.SURFACE_ALT, fg="#ffffff" if selected else self.MUTED)
+            if name == "SAVE GAME":
+                save_area.pack(side=tk.BOTTOM, fill=tk.X, padx=18, pady=(0, 18), before=viewer)
+            else:
+                save_area.pack_forget()
 
         for name in pages:
             button = tk.Button(tabs, text=name, command=lambda page=name: show_page(page), bg=self.SURFACE_ALT, fg=self.MUTED, activebackground="#30415e", activeforeground="#ffffff", relief=tk.FLAT, bd=0, font=("Arial", 9, "bold"), cursor="hand2", padx=15)
