@@ -4,6 +4,7 @@ import tkinter as tk
 from tkinter import messagebox, ttk
 
 from battle_panel import BattlePanel, hero_sprite_path
+from credits_panel import EndCreditsScreen
 from item import Item
 from skills import CLASS_SKILLS, class_name, unlocked_skills
 
@@ -114,7 +115,7 @@ class GamePanel(tk.Frame):
 
         self.hero_name_lbl = tk.Label(panel, font=("Arial", 18, "bold"), fg=self.TEXT, bg=self.SURFACE)
         self.hero_name_lbl.pack(anchor="w", padx=18, pady=(10, 0))
-        self.level_lbl = tk.Label(panel, font=("Arial", 10, "bold"), fg=self.GOLD, bg=self.SURFACE)
+        self.level_lbl = tk.Label(panel, font=("Arial", 8, "bold"), fg=self.GOLD, bg=self.SURFACE, wraplength=218, justify=tk.LEFT)
         self.level_lbl.pack(anchor="w", padx=18, pady=(2, 12))
 
         self.hp_lbl, self.hp_bar = self._stat_bar(panel, "HP", self.RED, "AdventureHP.Horizontal.TProgressbar")
@@ -307,6 +308,7 @@ class GamePanel(tk.Frame):
             "<KeyPress-e>": "Equip",
             "<Escape>": "Options",
         }
+        self._shortcut_sequences = tuple(bindings)
         for sequence, command in bindings.items():
             root.bind(sequence, lambda _event, value=command: self.action_performed(value))
 
@@ -609,7 +611,7 @@ class GamePanel(tk.Frame):
         self.show_inventory(equipment_only=True)
 
     def show_options(self):
-        window, content = self._modal("OPTIONS & GUIDE", "Everything you need to continue the journey.", "820x590")
+        window, content = self._modal("OPTIONS & GUIDE", "Everything you need to continue the journey.", "900x620")
         window.bind("<Escape>", lambda _event: window.destroy())
 
         tabs = tk.Frame(content, bg=self.SURFACE_ALT, height=54)
@@ -731,6 +733,10 @@ class GamePanel(tk.Frame):
 
         save_button = tk.Button(save_area, text="SAVE NOW", command=save_from_options, bg=self.GOLD, fg="#171008", activebackground="#e4b94f", activeforeground="#171008", relief=tk.FLAT, bd=0, font=("Arial", 10, "bold"), cursor="hand2", padx=20, pady=10)
         save_button.pack(side=tk.RIGHT, padx=12, pady=12)
+        title_button = tk.Button(save_area, text="RETURN TO TITLE", command=lambda: self.return_to_title(parent=window), bg="#2b3852", fg="#ffffff", activebackground="#405274", activeforeground="#ffffff", relief=tk.FLAT, bd=0, font=("Arial", 9, "bold"), cursor="hand2", padx=16, pady=10)
+        title_button.pack(side=tk.RIGHT, padx=4, pady=12)
+        quit_button = tk.Button(save_area, text="QUIT GAME", command=lambda: self.quit_game(parent=window), bg="#54232c", fg="#ffffff", activebackground="#7d303d", activeforeground="#ffffff", relief=tk.FLAT, bd=0, font=("Arial", 9, "bold"), cursor="hand2", padx=16, pady=10)
+        quit_button.pack(side=tk.RIGHT, padx=4, pady=12)
 
         tab_buttons = {}
 
@@ -748,9 +754,11 @@ class GamePanel(tk.Frame):
             else:
                 save_area.pack_forget()
 
-        for name in pages:
-            button = tk.Button(tabs, text=name, command=lambda page=name: show_page(page), bg=self.SURFACE_ALT, fg=self.MUTED, activebackground="#30415e", activeforeground="#ffffff", relief=tk.FLAT, bd=0, font=("Arial", 9, "bold"), cursor="hand2", padx=15)
-            button.pack(side=tk.LEFT, fill=tk.Y, padx=2)
+        for column, name in enumerate(pages):
+            button = tk.Button(tabs, text=name, command=lambda page=name: show_page(page), bg=self.SURFACE_ALT, fg=self.MUTED, activebackground="#30415e", activeforeground="#ffffff", relief=tk.FLAT, bd=0, font=("Arial", 8, "bold"), cursor="hand2", padx=4)
+            button.grid(row=0, column=column, sticky="nsew", padx=1)
+            tabs.grid_columnconfigure(column, weight=1, uniform="options_tab")
+            tabs.grid_rowconfigure(0, weight=1)
             tab_buttons[name] = button
         show_page("GUIDE")
 
@@ -839,8 +847,51 @@ class GamePanel(tk.Frame):
         elif command == "Challenge Demon King":
             self.challenge_final_boss()
         elif command == "Quit":
-            if messagebox.askyesno("Leave Sword Phantasia?", "Quit the game? Unsaved progress will be lost."):
-                sys.exit(0)
+            self.quit_game()
+
+    def return_to_title(self, parent=None):
+        confirmed = messagebox.askyesno(
+            "Return to Title?",
+            "Return to the title screen? Unsaved progress will be lost.",
+            parent=parent or self,
+        )
+        if not confirmed:
+            return
+        root = self.winfo_toplevel()
+        if parent and parent.winfo_exists():
+            parent.destroy()
+        self.destroy()
+        from main_menu import MainMenu
+        MainMenu(root)
+
+    def quit_game(self, parent=None):
+        confirmed = messagebox.askyesno(
+            "Leave Sword Phantasia?",
+            "Quit the game? Unsaved progress will be lost.",
+            parent=parent or self,
+        )
+        if confirmed:
+            self.winfo_toplevel().destroy()
+
+    def destroy(self):
+        root = self.winfo_toplevel()
+        for sequence in getattr(self, "_shortcut_sequences", ()):
+            try:
+                root.unbind(sequence)
+            except tk.TclError:
+                pass
+        if self._toast_job:
+            try:
+                self.after_cancel(self._toast_job)
+            except tk.TclError:
+                pass
+        for job in self._bar_jobs.values():
+            try:
+                self.after_cancel(job)
+            except tk.TclError:
+                pass
+        self._bar_jobs.clear()
+        super().destroy()
 
     def challenge_final_boss(self):
         if self.player.level < 10:
@@ -856,7 +907,18 @@ class GamePanel(tk.Frame):
 
     def fight_final_boss(self):
         self.append_text("The gates of the Primordial Throne open.", "special")
-        BattlePanel(self.winfo_toplevel(), self.player, is_boss=True)
+        battle = BattlePanel(self.winfo_toplevel(), self.player, is_boss=True)
+        if not battle.victory:
+            self.append_text("You withdraw from the Primordial Throne.", "warning")
+            self.update_stats()
+            return
         self.append_text("Demon King Koji has fallen. The realm is free.", "reward")
         self.player.save_to_file()
-        sys.exit(0)
+        root = self.winfo_toplevel()
+        credits = EndCreditsScreen(root, self.player)
+        if credits.result == "title":
+            self.destroy()
+            from main_menu import MainMenu
+            MainMenu(root)
+        else:
+            root.destroy()

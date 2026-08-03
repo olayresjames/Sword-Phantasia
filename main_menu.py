@@ -166,7 +166,7 @@ class MainMenu:
                 weapon_images.append(image)
             except (tk.TclError, OSError):
                 image = ""
-            button = tk.Button(card, image=image, text=f"{data['class'].upper()}\n{name}  •  {data['description']}\n+{data['damage']:.0f} starting damage", compound=tk.TOP, command=lambda weapon=name: select_weapon(weapon), bg=self.SURFACE, fg=self.TEXT, activebackground="#243149", activeforeground="#ffffff", relief=tk.FLAT, bd=0, font=("Arial", 10, "bold"), cursor="hand2", padx=12, pady=16)
+            button = tk.Button(card, image=image, text=f"{data['class'].upper()}\n{name}  •  {data['description']}\n+{data['damage']:.0f} starting damage", compound=tk.TOP, command=lambda weapon=name: select_weapon(weapon), bg=self.SURFACE, fg=self.TEXT, activebackground="#243149", activeforeground="#ffffff", relief=tk.FLAT, bd=0, font=("Arial", 10, "bold"), cursor="hand2", padx=12, pady=16, wraplength=190, justify=tk.CENTER)
             button.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
             button.bind("<Enter>", lambda event: event.widget.config(bg="#243149"))
             button.bind("<Leave>", lambda event: event.widget.config(bg=self.SURFACE))
