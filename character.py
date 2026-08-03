@@ -36,6 +36,9 @@ class Character:
         self.equipped_weapon = None
         self.starting_weapon = starting_weapon
         self.equipped_armor = None
+        self.current_region = "frontier"
+        self.quest_progress = {}
+        self.completed_quests = []
 
     def use_mana(self, amount):
         if self.mana >= amount:
@@ -64,6 +67,7 @@ class Character:
 
     def save_to_file(self, filename="savegame.json"):
         data = {
+            "save_version": 2,
             "name": self.name,
             "level": self.level,
             "max_hp": self.max_hp,
@@ -73,11 +77,16 @@ class Character:
             "coins": self.coins,
             "inventory": [item.to_dict() for item in self.inventory],
             "starting_weapon": self.starting_weapon,
+            "current_region": self.current_region,
+            "quest_progress": self.quest_progress,
+            "completed_quests": self.completed_quests,
             "equipped_weapon": self.equipped_weapon.to_dict() if self.equipped_weapon else None,
             "equipped_armor": getattr(self, 'equipped_armor').to_dict() if getattr(self, 'equipped_armor', None) else None
         }
-        with open(filename, "w") as f:
+        temp_filename = f"{filename}.tmp"
+        with open(temp_filename, "w") as f:
             json.dump(data, f)
+        os.replace(temp_filename, filename)
 
     @classmethod
     def load_from_file(cls, filename="savegame.json"):
@@ -91,6 +100,9 @@ class Character:
         char.mana = data.get("mana", 100)
         char.experience = data.get("experience", 0)
         char.coins = data.get("coins", 0)
+        char.current_region = data.get("current_region", "frontier")
+        char.quest_progress = data.get("quest_progress", {})
+        char.completed_quests = data.get("completed_quests", [])
         char.inventory = [Item.from_dict(item_data) for item_data in data.get("inventory", [])]
         equipped_data = data.get("equipped_weapon")
         if equipped_data:

@@ -6,7 +6,9 @@ from tkinter import messagebox, ttk
 from battle_panel import BattlePanel, hero_sprite_path
 from credits_panel import EndCreditsScreen
 from item import Item
+from quests import QUESTS, completed_quest_keys, primary_objective, quest_progress
 from skills import CLASS_SKILLS, class_name, unlocked_skills
+from world_data import REGIONS, current_region
 
 
 class GamePanel(tk.Frame):
@@ -22,18 +24,13 @@ class GamePanel(tk.Frame):
     RED = "#ff5363"
     PURPLE = "#a977e8"
 
-    LOCATIONS = {
-        "forward": ("Whispering Road", "A weathered road winds toward distant ruins."),
-        "back": ("Frontier Camp", "A quiet campfire marks the edge of the known realm."),
-        "left": ("Mosswood Edge", "Ancient trees crowd around a shadowed trail."),
-        "right": ("Sunken Trail", "Broken stones descend into a mist-covered valley."),
-    }
-
     def __init__(self, parent, player):
         super().__init__(parent, bg=self.BG)
         self.player = player
-        self.location_name = "Frontier Crossroads"
-        self.location_description = "Four roads diverge beneath an unsettled sky."
+        starting_region = current_region(player)
+        self.player.current_region = starting_region.key
+        self.location_name = starting_region.name
+        self.location_description = starting_region.description
         self.btn_dict = {}
         self._toast_job = None
         self._bar_jobs = {}
@@ -211,6 +208,8 @@ class GamePanel(tk.Frame):
         adventure.pack(fill=tk.X, padx=13)
         self._action_button(adventure, "EXPLORE", "Explore", 0, 0, "Search for monsters and discoveries", color="#7f2632", hover="#b63846")
         self._action_button(adventure, "REST", "Rest", 0, 1, "Recover 10 HP and 10 MP", color="#27634d", hover="#328165")
+        self._action_button(adventure, "REGION MAP", "Region Map", 1, 0, "Travel between unlocked regions")
+        self._action_button(adventure, "QUEST LOG", "Quest Log", 1, 1, "Review objectives and rewards")
 
         self._section_label(panel, "SETTLEMENT")
         settlement = tk.Frame(panel, bg=self.SURFACE)
@@ -306,6 +305,8 @@ class GamePanel(tk.Frame):
             "<KeyPress-Right>": "Walk Right",
             "<KeyPress-i>": "Inventory",
             "<KeyPress-e>": "Equip",
+            "<KeyPress-m>": "Region Map",
+            "<KeyPress-q>": "Quest Log",
             "<Escape>": "Options",
         }
         self._shortcut_sequences = tuple(bindings)
@@ -345,15 +346,16 @@ class GamePanel(tk.Frame):
         self._set_button_state("Equip", bool(equippables), "No equipment available")
         self._set_button_state("Blacksmith", weapon is not None, "Equip a weapon to use the smith")
 
-        boss_ready = self.player.level >= 10
+        boss_ready = self.player.level >= 10 and self.player.current_region == "throne"
         if boss_ready:
             self.boss_btn.config(text="CHALLENGE DEMON KING", state=tk.NORMAL, bg="#663795", fg="#ffffff")
             self.boss_btn.bind("<Enter>", lambda event: event.widget.config(bg="#8750bc"))
             self.boss_btn.bind("<Leave>", lambda event: event.widget.config(bg="#663795"))
-            self.objective_lbl.config(text="Enter the Primordial Throne and defeat Demon King Koji")
+            self.objective_lbl.config(text=primary_objective(self.player))
         else:
-            self.boss_btn.config(text=f"FINAL OBJECTIVE  •  LEVEL {self.player.level}/10", state=tk.DISABLED, bg="#191e2a", fg="#68738d")
-            self.objective_lbl.config(text=f"Reach level 10 to challenge Demon King Koji  •  {self.player.level}/10")
+            boss_text = "FINAL OBJECTIVE  •  TRAVEL TO THRONE" if self.player.level >= 10 else f"FINAL OBJECTIVE  •  LEVEL {self.player.level}/10"
+            self.boss_btn.config(text=boss_text, state=tk.DISABLED, bg="#191e2a", fg="#68738d")
+            self.objective_lbl.config(text=primary_objective(self.player))
 
     def _set_button_state(self, command, enabled, disabled_hint):
         button = self.btn_dict.get(command)
@@ -408,9 +410,13 @@ class GamePanel(tk.Frame):
         self.after(450, lambda: label.config(fg=original) if label.winfo_exists() else None)
 
     def encounter_monster(self):
-        self.append_text("A hostile presence emerges from the wilds!", "warning")
-        BattlePanel(self.winfo_toplevel(), self.player)
-        self.append_text("You return from battle alive.", "success")
+        region = current_region(self.player)
+        if not region.monsters:
+            self.append_text("No lesser creature dares approach the Primordial Throne.", "special")
+            return
+        self.append_text(f"A hostile presence emerges in {region.name}!", "warning")
+        battle = BattlePanel(self.winfo_toplevel(), self.player)
+        self.append_text(f"You return from battle with {battle.monster_name} behind you.", "success")
         self.player.save_to_file()
         self.save_status_lbl.config(text="AUTOSAVED", fg=self.GREEN)
         self.show_toast("GAME AUTOSAVED")
@@ -426,6 +432,108 @@ class GamePanel(tk.Frame):
         self.update_stats()
         self._pulse_label(self.hp_lbl, self.GREEN)
         self._pulse_label(self.mana_lbl, self.GREEN)
+
+    def show_region_map(self):
+        window, content = self._modal("REGION MAP", "Travel across the realm as your strength grows.", "760x520")
+        regions = tuple(REGIONS.values())
+        body = tk.Frame(content, bg=self.SURFACE)
+        body.pack(fill=tk.BOTH, expand=True, padx=22, pady=22)
+        listbox = tk.Listbox(body, bg="#0b1019", fg=self.TEXT, selectbackground="#3b4d70", selectforeground="#ffffff", font=("Consolas", 11, "bold"), relief=tk.FLAT, activestyle="none", width=31)
+        listbox.pack(side=tk.LEFT, fill=tk.BOTH, padx=(0, 10))
+        details = tk.Frame(body, bg=self.SURFACE_ALT, width=390)
+        details.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=(10, 0))
+        name_lbl = tk.Label(details, text="SELECT A REGION", wraplength=330, font=("Georgia", 20, "bold"), fg=self.TEXT, bg=self.SURFACE_ALT)
+        name_lbl.pack(padx=24, pady=(34, 8))
+        level_lbl = tk.Label(details, text="", font=("Arial", 9, "bold"), fg=self.GOLD, bg=self.SURFACE_ALT)
+        level_lbl.pack()
+        description_lbl = tk.Label(details, text="Choose a destination on the map.", wraplength=330, justify=tk.LEFT, font=("Arial", 10), fg=self.MUTED, bg=self.SURFACE_ALT)
+        description_lbl.pack(padx=26, pady=20)
+        travel_btn = self._modal_button(details, "SELECT REGION", lambda: travel(), self.BLUE, "#3d8fd7")
+        travel_btn.config(state=tk.DISABLED)
+
+        for region in regions:
+            if self.player.current_region == region.key:
+                marker = "HERE"
+            elif self.player.level >= region.unlock_level:
+                marker = "OPEN"
+            else:
+                marker = f"LV {region.unlock_level}"
+            listbox.insert(tk.END, f" {marker:<5}  {region.name}")
+
+        def on_select(_event=None):
+            selection = listbox.curselection()
+            if not selection:
+                return
+            region = regions[selection[0]]
+            unlocked = self.player.level >= region.unlock_level
+            current = self.player.current_region == region.key
+            name_lbl.config(text=region.name)
+            level_lbl.config(text=f"UNLOCK LEVEL  {region.unlock_level}")
+            monsters = ", ".join(monster.name for monster in region.monsters) or "Demon King Koji"
+            description_lbl.config(text=f"{region.description}\n\nENCOUNTERS\n{monsters}")
+            if current:
+                travel_btn.config(text="CURRENT REGION", state=tk.DISABLED, bg="#252b37")
+            elif not unlocked:
+                travel_btn.config(text=f"REQUIRES LEVEL {region.unlock_level}", state=tk.DISABLED, bg="#252b37")
+            else:
+                travel_btn.config(text="TRAVEL HERE", state=tk.NORMAL, bg=self.BLUE, command=travel)
+
+        def travel():
+            selection = listbox.curselection()
+            if not selection:
+                return
+            region = regions[selection[0]]
+            if self.player.level < region.unlock_level:
+                return
+            self.player.current_region = region.key
+            self.location_name = region.name
+            self.location_description = region.description
+            self.append_text(f"You travel to {region.name}.", "travel")
+            self.update_stats()
+            self.show_toast(f"REGION  •  {region.name.upper()}", self.BLUE)
+            window.destroy()
+
+        listbox.bind("<<ListboxSelect>>", on_select)
+        listbox.bind("<Double-Button-1>", lambda _event: travel())
+
+    def show_quest_log(self):
+        window, content = self._modal("QUEST LOG", "Track the battles shaping the fate of the realm.", "800x550")
+        completed = completed_quest_keys(self.player)
+        quests = tuple(quest for quest in QUESTS if self.player.level >= quest.unlock_level)
+        body = tk.Frame(content, bg=self.SURFACE)
+        body.pack(fill=tk.BOTH, expand=True, padx=22, pady=22)
+        listbox = tk.Listbox(body, bg="#0b1019", fg=self.TEXT, selectbackground="#3b4d70", selectforeground="#ffffff", font=("Consolas", 10, "bold"), relief=tk.FLAT, activestyle="none", width=35)
+        listbox.pack(side=tk.LEFT, fill=tk.BOTH, padx=(0, 10))
+        details = tk.Frame(body, bg=self.SURFACE_ALT)
+        details.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=(10, 0))
+        name_lbl = tk.Label(details, text="SELECT A QUEST", wraplength=350, font=("Georgia", 19, "bold"), fg=self.TEXT, bg=self.SURFACE_ALT)
+        name_lbl.pack(padx=24, pady=(34, 8))
+        status_lbl = tk.Label(details, text="", font=("Arial", 9, "bold"), fg=self.GREEN, bg=self.SURFACE_ALT)
+        status_lbl.pack()
+        description_lbl = tk.Label(details, text="Your active story objectives appear here.", wraplength=350, justify=tk.LEFT, font=("Arial", 10), fg=self.MUTED, bg=self.SURFACE_ALT)
+        description_lbl.pack(padx=28, pady=22)
+
+        if not quests:
+            listbox.insert(tk.END, " No quests available")
+        for quest in quests:
+            progress = quest_progress(self.player, quest)
+            marker = "DONE" if quest.key in completed else f"{progress}/{quest.required}"
+            listbox.insert(tk.END, f" {marker:<5}  {quest.title}")
+
+        def on_select(_event=None):
+            selection = listbox.curselection()
+            if not selection or not quests:
+                return
+            quest = quests[selection[0]]
+            progress = quest_progress(self.player, quest)
+            is_complete = quest.key in completed
+            name_lbl.config(text=quest.title)
+            status_lbl.config(text="COMPLETED" if is_complete else f"PROGRESS  {progress} / {quest.required}", fg=self.GREEN if is_complete else self.GOLD)
+            item_reward = f" + {quest.reward_item[0]}" if quest.reward_item else ""
+            region_name = REGIONS[quest.region].name
+            description_lbl.config(text=f"{quest.description}\n\nREGION\n{region_name}\n\nREWARD\n{quest.reward_exp} EXP  •  {quest.reward_gold} GOLD{item_reward}")
+
+        listbox.bind("<<ListboxSelect>>", on_select)
 
     def visit_blacksmith(self):
         weapon = getattr(self.player, "equipped_weapon", None)
@@ -681,6 +789,8 @@ class GamePanel(tk.Frame):
                 ("D / Right Arrow", "key"), ("   Move right\n", "body"),
                 ("I", "key"), ("   Open Inventory\n", "body"),
                 ("E", "key"), ("   Open Equipment\n", "body"),
+                ("M", "key"), ("   Open Region Map\n", "body"),
+                ("Q", "key"), ("   Open Quest Log\n", "body"),
                 ("Escape", "key"), ("   Open or close Options\n", "body"),
                 ("Battle Screen\n", "heading"),
                 ("A", "key"), ("   Attack\n", "body"),
@@ -693,6 +803,19 @@ class GamePanel(tk.Frame):
                 ("Enter / Space", "key"), ("   Continue from the victory screen\n", "body"),
             ],
             "SKILLS": skill_guide,
+            "WORLD": [
+                ("THE REALM\n", "title"),
+                ("Frontier Plains  •  Level 1\n", "heading"),
+                ("Slimes regenerate and use corrosive attacks. Complete The Slime Tide to earn supplies for the road.\n", "body"),
+                ("Mosswood Wilds  •  Level 3\n", "heading"),
+                ("Goblins ambush travelers and can steal gold. Break their warband to earn Mossguard armor.\n", "body"),
+                ("Ashen Crypt  •  Level 6\n", "heading"),
+                ("Skeletons use heavy counters and Bone Guard. Silence the restless dead to claim an ancient weapon.\n", "body"),
+                ("Primordial Throne  •  Level 10\n", "heading"),
+                ("Travel here through the Region Map to unlock the final confrontation with Demon King Koji.\n", "body"),
+                ("Enemy Intents\n", "heading"),
+                ("The battle target panel reveals the enemy's next action. Use this warning to choose between attacking, defending, healing, or using a class skill.\n", "note"),
+            ],
             "FINAL BOSS": [
                 ("THE PRIMORDIAL THRONE\n", "title"),
                 ("Unlocking the Battle\n", "heading"),
@@ -816,7 +939,8 @@ class GamePanel(tk.Frame):
 
         if command.startswith("Walk"):
             direction = command.replace("Walk ", "").lower()
-            self.location_name, self.location_description = self.LOCATIONS[direction]
+            region = current_region(self.player)
+            self.location_name, self.location_description = region.locations[direction]
             self.append_text(f"You travel {direction} and arrive at {self.location_name}.", "travel")
             self.update_stats()
             if random.randint(0, 99) < 20:
@@ -829,6 +953,10 @@ class GamePanel(tk.Frame):
                 self.append_text("The area is quiet. Nothing answers your search.", "system")
         elif command == "Rest":
             self.rest()
+        elif command == "Region Map":
+            self.show_region_map()
+        elif command == "Quest Log":
+            self.show_quest_log()
         elif command == "Blacksmith":
             self.visit_blacksmith()
         elif command == "Shop":
@@ -896,6 +1024,9 @@ class GamePanel(tk.Frame):
     def challenge_final_boss(self):
         if self.player.level < 10:
             self.show_toast("REACH LEVEL 10 FIRST", self.RED)
+            return
+        if self.player.current_region != "throne":
+            self.show_toast("TRAVEL TO THE PRIMORDIAL THRONE", self.PURPLE)
             return
         choice = messagebox.askyesno(
             "The Primordial Throne",

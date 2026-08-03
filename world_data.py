@@ -1,0 +1,154 @@
+from dataclasses import dataclass
+import random
+
+
+@dataclass(frozen=True)
+class EnemyIntent:
+    label: str
+    kind: str
+    weight: int
+    multiplier: float = 1.0
+    heal_fraction: float = 0.0
+    guard_fraction: float = 0.0
+
+
+@dataclass(frozen=True)
+class MonsterSpec:
+    name: str
+    family: str
+    sprite_key: str
+    hp_range: tuple
+    attack_range: tuple
+    weight: int = 1
+
+
+@dataclass(frozen=True)
+class Region:
+    key: str
+    name: str
+    unlock_level: int
+    description: str
+    locations: dict
+    monsters: tuple
+
+
+ENEMY_INTENTS = {
+    "slime": (
+        EnemyIntent("Wobbly Tackle", "attack", 6, multiplier=1.0),
+        EnemyIntent("Corrosive Splash", "attack", 3, multiplier=1.35),
+        EnemyIntent("Gel Regeneration", "heal", 2, heal_fraction=0.14),
+    ),
+    "goblin": (
+        EnemyIntent("Jagged Slash", "attack", 6, multiplier=1.0),
+        EnemyIntent("Dirty Ambush", "attack", 3, multiplier=1.5),
+        EnemyIntent("Pilfering Strike", "steal", 2, multiplier=0.75),
+    ),
+    "skeleton": (
+        EnemyIntent("Boneblade Strike", "attack", 6, multiplier=1.0),
+        EnemyIntent("Grave Counter", "attack", 3, multiplier=1.4),
+        EnemyIntent("Bone Guard", "guard", 2, guard_fraction=0.40),
+    ),
+    "demon": (
+        EnemyIntent("Abyssal Claw", "attack", 5, multiplier=1.0),
+        EnemyIntent("Primordial Hellfire", "attack", 4, multiplier=1.55),
+        EnemyIntent("World-Ender", "attack", 1, multiplier=1.95),
+    ),
+}
+
+
+REGIONS = {
+    "frontier": Region(
+        "frontier",
+        "Frontier Plains",
+        1,
+        "Wind-beaten grasslands where strange slimes gather near the old roads.",
+        {
+            "forward": ("Whispering Road", "A weathered road winds toward distant ruins."),
+            "back": ("Frontier Camp", "A quiet campfire marks the edge of the known realm."),
+            "left": ("Silvergrass Field", "Pale grass bends around pools of living gel."),
+            "right": ("Old Watch Hill", "A ruined watchtower overlooks the plains."),
+        },
+        (
+            MonsterSpec("Slime", "slime", "Slime", (30, 52), (5, 10), 5),
+            MonsterSpec("Verdant Slime", "slime", "Slime", (42, 65), (7, 12), 3),
+            MonsterSpec("King Slime", "slime", "Slime", (70, 95), (10, 15), 1),
+        ),
+    ),
+    "mosswood": Region(
+        "mosswood",
+        "Mosswood Wilds",
+        3,
+        "An ancient forest occupied by cunning goblin warbands.",
+        {
+            "forward": ("Warchief's Path", "Totems and bootprints mark a guarded trail."),
+            "back": ("Mosswood Gate", "Stone lanterns stand beneath the tangled canopy."),
+            "left": ("Mooncap Hollow", "Blue mushrooms illuminate abandoned camps."),
+            "right": ("Thornwatch Ridge", "Goblin scouts watch from thorn-covered ledges."),
+        },
+        (
+            MonsterSpec("Goblin", "goblin", "Goblin", (65, 88), (11, 17), 5),
+            MonsterSpec("Goblin Scout", "goblin", "Goblin", (72, 98), (13, 19), 3),
+            MonsterSpec("Goblin Warchief", "goblin", "Goblin", (105, 135), (17, 23), 1),
+        ),
+    ),
+    "crypt": Region(
+        "crypt",
+        "Ashen Crypt",
+        6,
+        "A buried necropolis where the honored dead no longer sleep.",
+        {
+            "forward": ("Hall of Ash", "Dust falls from statues of forgotten monarchs."),
+            "back": ("Crypt Entrance", "Cold daylight fades behind the burial doors."),
+            "left": ("Ossuary Walk", "Thousands of bones line the narrow passage."),
+            "right": ("Warden's Vault", "Ancient chains rattle behind a sealed arch."),
+        },
+        (
+            MonsterSpec("Skeleton", "skeleton", "Skeleton", (105, 140), (18, 25), 5),
+            MonsterSpec("Crypt Archer", "skeleton", "Skeleton", (115, 150), (20, 27), 3),
+            MonsterSpec("Bone Warden", "skeleton", "Skeleton", (155, 195), (24, 32), 1),
+        ),
+    ),
+    "throne": Region(
+        "throne",
+        "Primordial Throne",
+        10,
+        "The final stronghold of Demon King Koji.",
+        {
+            "forward": ("Throne Approach", "Black fire burns along the final path."),
+            "back": ("Obsidian Gate", "The sealed gate separates the realm from oblivion."),
+            "left": ("Void Gallery", "Ancient murals depict the birth of primordial demons."),
+            "right": ("Crown of Ash", "A shattered balcony hangs above an endless abyss."),
+        },
+        (),
+    ),
+}
+
+
+DEMON_KING = MonsterSpec("Demon King Koji", "demon", "Demon King Koji", (500, 500), (45, 45), 1)
+
+
+def unlocked_regions(player):
+    return tuple(region for region in REGIONS.values() if player.level >= region.unlock_level)
+
+
+def current_region(player):
+    key = getattr(player, "current_region", "frontier")
+    region = REGIONS.get(key, REGIONS["frontier"])
+    if player.level < region.unlock_level:
+        return REGIONS["frontier"]
+    return region
+
+
+def choose_monster(player):
+    region = current_region(player)
+    if not region.monsters:
+        return REGIONS["crypt"].monsters[0]
+    return random.choices(region.monsters, weights=[monster.weight for monster in region.monsters], k=1)[0]
+
+
+def choose_enemy_intent(family, hp_ratio=1.0):
+    intents = list(ENEMY_INTENTS.get(family, ENEMY_INTENTS["slime"]))
+    weights = [intent.weight for intent in intents]
+    if family == "demon" and hp_ratio <= 0.35:
+        weights = [2, 5, 4]
+    return random.choices(intents, weights=weights, k=1)[0]

@@ -6,7 +6,9 @@ import sys
 import threading
 import os
 from item import Item
+from quests import record_defeat
 from skills import all_skills, class_name, newly_unlocked_skills, unlocked_skills
+from world_data import DEMON_KING, choose_enemy_intent, choose_monster, current_region
 
 HERO_SPRITES = {
     "sword": "assets/hero-sprites/sword.png",
@@ -75,7 +77,7 @@ except ImportError:
 class VictoryScreen(tk.Toplevel):
     """JRPG-inspired battle results screen."""
 
-    def __init__(self, parent, player, monster_name, exp, coins, loot=None, leveled_up=False, new_skills=()):
+    def __init__(self, parent, player, monster_name, exp, coins, loot=None, leveled_up=False, new_skills=(), quest_updates=(), quest_completions=()):
         super().__init__(parent)
         self.player = player
         self.is_final_victory = monster_name == "Demon King Koji"
@@ -139,6 +141,9 @@ class VictoryScreen(tk.Toplevel):
         if new_skills:
             names = ", ".join(skill.name for skill in new_skills)
             self._reward_row(results, "NEW SKILL", names, "#c49cff")
+        if quest_completions:
+            names = ", ".join(quest.title for quest, _item in quest_completions)
+            self._reward_row(results, "QUEST COMPLETE", names, "#67dca5")
 
         progress = tk.Frame(body, bg="#111724", highlightbackground="#303b55", highlightthickness=1, width=330)
         progress.pack(side=tk.RIGHT, fill=tk.BOTH, padx=(10, 0))
@@ -168,6 +173,9 @@ class VictoryScreen(tk.Toplevel):
         else:
             status_text = "The journey continues."
         tk.Label(progress, text=status_text, wraplength=275, justify=tk.LEFT, font=("Arial", 10), fg="#9ca7bd", bg="#111724").pack(anchor="w", padx=22)
+        if quest_updates:
+            quest, current = quest_updates[-1]
+            tk.Label(progress, text=f"QUEST  •  {quest.title}\n{current} / {quest.required}", justify=tk.LEFT, font=("Arial", 9, "bold"), fg="#67dca5", bg="#111724").pack(anchor="w", padx=22, pady=(14, 0))
 
         continue_btn = tk.Button(
             self,
@@ -198,8 +206,8 @@ class VictoryScreen(tk.Toplevel):
         self.wait_window(self)
 
     def _reward_row(self, parent, title, value, color):
-        row = tk.Frame(parent, bg="#171e2d", height=55)
-        row.pack(fill=tk.X, padx=18, pady=3)
+        row = tk.Frame(parent, bg="#171e2d", height=45)
+        row.pack(fill=tk.X, padx=18, pady=2)
         row.pack_propagate(False)
         tk.Frame(row, bg=color, width=4).pack(side=tk.LEFT, fill=tk.Y)
         tk.Label(row, text=title, font=("Arial", 9, "bold"), fg="#8591aa", bg="#171e2d").pack(side=tk.LEFT, padx=16)
@@ -256,7 +264,7 @@ class VictoryScreen(tk.Toplevel):
 
 
 class BattlePanel(tk.Toplevel):
-    def __init__(self, parent, player, is_boss=False):
+    def __init__(self, parent, player, is_boss=False, monster_spec=None):
         super().__init__(parent)
         self.player = player
         self.is_boss = is_boss
@@ -273,6 +281,7 @@ class BattlePanel(tk.Toplevel):
         self.enemy_weaken = 0
         self.turn_state = "player"
         self.victory = False
+        self.enemy_guard_fraction = 0.0
         
         self.title("Battle!" if not is_boss else "Final Battle!")
         self.geometry("1100x720")
@@ -284,20 +293,16 @@ class BattlePanel(tk.Toplevel):
         except tk.TclError:
             self.attributes('-fullscreen', True)
         
-        if self.is_boss:
-            self.monster_name = "Demon King Koji"
-            self.monster_max_hp = 500
-            self.monster_hp = self.monster_max_hp
-            self.monster_attack = 45
-        else:
-            monster_names = ["Slime", "Goblin", "Skeleton"]
-            self.monster_name = random.choice(monster_names)
-            
-            level_bonus_hp = (self.player.level - 1) * 15
-            level_bonus_atk = (self.player.level - 1) * 3
-            self.monster_max_hp = random.randint(30, 79) + level_bonus_hp
-            self.monster_hp = self.monster_max_hp
-            self.monster_attack = random.randint(5, 14) + level_bonus_atk
+        self.monster_spec = DEMON_KING if self.is_boss else (monster_spec or choose_monster(self.player))
+        self.monster_name = self.monster_spec.name
+        self.monster_family = self.monster_spec.family
+        self.monster_sprite_key = self.monster_spec.sprite_key
+        region = current_region(self.player)
+        region_level_bonus = max(0, self.player.level - region.unlock_level)
+        self.monster_max_hp = random.randint(*self.monster_spec.hp_range) + region_level_bonus * 7
+        self.monster_hp = self.monster_max_hp
+        self.monster_attack = random.randint(*self.monster_spec.attack_range) + region_level_bonus
+        self.enemy_intent = choose_enemy_intent(self.monster_family, 1.0)
             
         self._configure_battle_styles()
 
@@ -324,7 +329,7 @@ class BattlePanel(tk.Toplevel):
 
         # Enemy Info (Top Left)
         enemy_frame = tk.Frame(scene_frame, bg="#141a27", highlightbackground=self.accent, highlightthickness=2)
-        enemy_frame.place(relx=0.035, rely=0.06, relwidth=0.34, height=118)
+        enemy_frame.place(relx=0.035, rely=0.06, relwidth=0.34, height=140)
         tk.Label(enemy_frame, text="TARGET", font=("Arial", 8, "bold"), fg="#8e9ab5", bg="#141a27").pack(anchor="w", padx=16, pady=(10, 0))
         self.m_name_lbl = tk.Label(enemy_frame, font=("Arial", 17, "bold"), fg=self.accent, bg="#141a27")
         self.m_name_lbl.pack(anchor="w", padx=16)
@@ -335,11 +340,13 @@ class BattlePanel(tk.Toplevel):
         self.m_hp_percent_lbl = tk.Label(enemy_vitals, font=("Consolas", 10, "bold"), fg="#ff8c94", bg="#141a27")
         self.m_hp_percent_lbl.pack(side=tk.RIGHT)
         self.m_hp_bar = ttk.Progressbar(enemy_frame, style="Enemy.Horizontal.TProgressbar", orient="horizontal", mode="determinate")
-        self.m_hp_bar.pack(fill=tk.X, padx=16, pady=(3, 10), ipady=3)
+        self.m_hp_bar.pack(fill=tk.X, padx=16, pady=(3, 4), ipady=3)
+        self.m_intent_lbl = tk.Label(enemy_frame, font=("Arial", 8, "bold"), fg="#ffd166", bg="#141a27")
+        self.m_intent_lbl.pack(anchor="w", padx=16, pady=(0, 7))
         
         # Enemy Sprite (Center Right)
         self.monster_sprite_image = None
-        monster_sprite = MONSTER_SPRITES.get(self.monster_name)
+        monster_sprite = MONSTER_SPRITES.get(self.monster_sprite_key)
         if monster_sprite:
             try:
                 self.monster_sprite_image = tk.PhotoImage(file=resource_path(monster_sprite))
@@ -349,7 +356,7 @@ class BattlePanel(tk.Toplevel):
         if self.monster_sprite_image:
             self.m_sprite = scene_frame.create_image(0, 0, image=self.monster_sprite_image, anchor="center", tags=("sprite", "monster_sprite"))
         else:
-            sprite_text = {"Slime": "(~_~)", "Goblin": "(\\>/)", "Skeleton": "[x_x]", "Demon King Koji": "\\m/ (>_<) \\m/"}.get(self.monster_name, "???")
+            sprite_text = {"Slime": "(~_~)", "Goblin": "(\\>/)", "Skeleton": "[x_x]", "Demon King Koji": "\\m/ (>_<) \\m/"}.get(self.monster_sprite_key, "???")
             self.m_sprite = scene_frame.create_text(0, 0, text=sprite_text, font=("Consolas", 60, "bold"), fill=self.accent, tags=("sprite", "monster_sprite"))
         
         # Player Info (Bottom Right)
@@ -597,6 +604,7 @@ class BattlePanel(tk.Toplevel):
     def _finish_enemy_turn(self):
         if not self.winfo_exists() or self.player.hp <= 0:
             return
+        self._prepare_enemy_intent()
         self.turn_state = "player"
         self.turn_badge.config(text="YOUR TURN", bg="#55e6a5", fg="#08100c")
         self.update_player_stats()
@@ -609,6 +617,7 @@ class BattlePanel(tk.Toplevel):
         self.m_hp_percent_lbl.config(text=f"{hp_percent}%")
         self.m_hp_bar['maximum'] = self.monster_max_hp
         self.m_hp_bar['value'] = visible_hp
+        self.m_intent_lbl.config(text=f"INTENT  •  {self.enemy_intent.label.upper()}")
 
     def append_text(self, text, kind="system"):
         self.battle_log.config(state=tk.NORMAL)
@@ -623,6 +632,7 @@ class BattlePanel(tk.Toplevel):
         play_sound("attack")
         weapon_dmg = self.player.equipped_weapon.additional_damage if getattr(self.player, 'equipped_weapon', None) else 0
         damage = 15 + (self.player.level * 5) + int(weapon_dmg) + random.randint(0, 9) + self.next_attack_bonus
+        damage = self._apply_enemy_guard(damage)
         used_bonus = self.next_attack_bonus
         self.next_attack_bonus = 0
         self.monster_hp -= damage
@@ -722,7 +732,7 @@ class BattlePanel(tk.Toplevel):
         self.player.use_mana(skill.mp_cost)
         play_sound("skill")
         rolls = [random.randint(skill.min_damage, skill.max_damage) for _ in range(skill.hits)]
-        total_damage = sum(rolls)
+        total_damage = self._apply_enemy_guard(sum(rolls))
         self.monster_hp -= total_damage
         self._animate_hit("monster", total_damage, "#c69cff")
         hit_text = f" across {skill.hits} hits" if skill.hits > 1 else ""
@@ -814,6 +824,20 @@ class BattlePanel(tk.Toplevel):
         self._animation_jobs.append(self.after(350, lambda: self._resolve_monster_turn(defending)))
 
     def _resolve_monster_turn(self, defending=False):
+        intent = self.enemy_intent
+        if intent.kind == "heal":
+            healed = min(self.monster_max_hp - self.monster_hp, max(1, int(self.monster_max_hp * intent.heal_fraction)))
+            self.monster_hp += healed
+            self._show_floating_text(f"+{healed}", "monster", "#67dca5")
+            self.append_text(f"{self.monster_name} uses {intent.label} and restores {healed} HP.", "enemy")
+            self.update_monster_stats()
+            self._animation_jobs.append(self.after(650, self._finish_enemy_turn))
+            return
+        if intent.kind == "guard":
+            self.enemy_guard_fraction = intent.guard_fraction
+            self.append_text(f"{self.monster_name} uses {intent.label} and braces against your next attack.", "enemy")
+            self._animation_jobs.append(self.after(650, self._finish_enemy_turn))
+            return
         if self.evade_next_attack:
             self.evade_next_attack = False
             self._show_floating_text("EVADE", "player", "#72baff")
@@ -822,13 +846,17 @@ class BattlePanel(tk.Toplevel):
             self._animation_jobs.append(self.after(500, self._finish_enemy_turn))
             return
         play_sound("damage")
-        taken = self._incoming_damage(defending=defending)
+        taken = self._incoming_damage(defending=defending, multiplier=intent.multiplier)
         self.player.hp -= taken
         self._animate_hit("player", taken)
         if defending:
             self.append_text(f"{self.monster_name} attacks, but your guard reduces it to {taken} damage.", "enemy")
         else:
-            self.append_text(f"{self.monster_name} hits you for {taken} damage.", "enemy")
+            self.append_text(f"{self.monster_name} uses {intent.label} for {taken} damage.", "enemy")
+        if intent.kind == "steal":
+            stolen = min(self.player.coins, random.randint(3, 8))
+            self.player.coins -= stolen
+            self.append_text(f"The goblin steals {stolen} gold!", "enemy")
         self.update_player_stats()
         
         if self.player.hp <= 0:
@@ -836,12 +864,12 @@ class BattlePanel(tk.Toplevel):
             return
         self._animation_jobs.append(self.after(650, self._finish_enemy_turn))
 
-    def _incoming_damage(self, defending=False):
+    def _incoming_damage(self, defending=False, multiplier=1.0):
         armor_def = self.player.equipped_armor.defense_bonus if getattr(self.player, 'equipped_armor', None) else 0
         defense_bonus = 5 + random.randint(0, 4) if defending else 0
         taken = max(
             0,
-            self.monster_attack + random.randint(0, 4)
+            int(self.monster_attack * multiplier) + random.randint(0, 4)
             - int(armor_def)
             - defense_bonus
             - self.skill_guard_bonus
@@ -850,6 +878,21 @@ class BattlePanel(tk.Toplevel):
         self.skill_guard_bonus = 0
         self.enemy_weaken = 0
         return taken
+
+    def _apply_enemy_guard(self, damage):
+        if self.enemy_guard_fraction <= 0:
+            return damage
+        reduced_damage = max(1, int(damage * (1.0 - self.enemy_guard_fraction)))
+        blocked = damage - reduced_damage
+        self.enemy_guard_fraction = 0.0
+        self.append_text(f"Bone Guard blocks {blocked} damage.", "enemy")
+        return reduced_damage
+
+    def _prepare_enemy_intent(self):
+        hp_ratio = max(0, self.monster_hp) / self.monster_max_hp
+        self.enemy_intent = choose_enemy_intent(self.monster_family, hp_ratio)
+        if hasattr(self, "m_intent_lbl"):
+            self.m_intent_lbl.config(text=f"INTENT  •  {self.enemy_intent.label.upper()}")
 
     def player_defeated(self):
         self.append_text(f"You were defeated by {self.monster_name}.", "enemy")
@@ -874,6 +917,8 @@ class BattlePanel(tk.Toplevel):
             dropped_item = random.choice(loot_pool)
             self.player.inventory.append(dropped_item)
 
+        quest_updates, quest_completions = record_defeat(self.player, self.monster_family)
+
         VictoryScreen(
             self,
             self.player,
@@ -883,4 +928,6 @@ class BattlePanel(tk.Toplevel):
             loot=dropped_item,
             leveled_up=self.player.level > previous_level,
             new_skills=newly_unlocked_skills(self.player, previous_level),
+            quest_updates=quest_updates,
+            quest_completions=quest_completions,
         )
