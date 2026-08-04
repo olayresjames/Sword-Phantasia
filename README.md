@@ -39,6 +39,7 @@ A Python-based Role-Playing Game (RPG) featuring a graphical user interface buil
 1. Start the game and click "Play Game" from the main menu.
 2. Enter your character's name and select a starting weapon (Sword, Bow, or Axe).
 3. Use the on-screen controls or WASD/arrow keys to explore. Press `M` for the Region Map and `Q` for the Quest Log.
+   Press `F10` or choose **AUDIO & SETTINGS** on the bottom bar for volume controls, accessibility options, and a full player-stat summary.
 4. Watch enemy intents during combat and press `S` to open your class skill deck.
    Skills deal 25% bonus damage against telegraphed heavy attacks. Defending restores MP, with extra recovery against heavy attacks.
 5. Complete each regional quest and defeat its champion to break the three seals on the Primordial Throne.

@@ -1,0 +1,24 @@
+{
+  "difficulty": "Normal",
+  "text_speed": "Normal",
+  "music_volume": 0.29,
+  "sfx_volume": 0.29,
+  "display_mode": "Fullscreen",
+  "reduce_animations": false,
+  "keybindings": {
+    "walk_forward": "w",
+    "walk_back": "s",
+    "walk_left": "a",
+    "walk_right": "d",
+    "inventory": "i",
+    "equip": "e",
+    "region_map": "m",
+    "quest_log": "q",
+    "options": "Escape",
+    "battle_attack": "a",
+    "battle_defend": "d",
+    "battle_item": "i",
+    "battle_skill": "s",
+    "battle_escape": "r"
+  }
+}

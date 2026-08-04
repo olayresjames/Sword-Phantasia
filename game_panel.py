@@ -299,7 +299,7 @@ class GamePanel(tk.Frame):
         self._utility_button(bar, "INVENTORY  [I]", "Inventory")
         self._utility_button(bar, "EQUIPMENT  [E]", "Equip")
         self._utility_button(bar, "OPTIONS  [ESC]", "Options")
-        self._utility_button(bar, "SETTINGS", "Settings")
+        self._utility_button(bar, "AUDIO & SETTINGS  [F10]", "Settings")
         self._utility_button(bar, "SAVE GAME", "Save Game")
         self._utility_button(bar, "QUIT", "Quit", danger=True, side=tk.RIGHT)
 
@@ -334,6 +334,7 @@ class GamePanel(tk.Frame):
             key_sequence(settings.key("region_map")): "Region Map",
             key_sequence(settings.key("quest_log")): "Quest Log",
             key_sequence(settings.key("options")): "Options",
+            "<KeyPress-F10>": "Settings",
         }
         self._shortcut_sequences = tuple(bindings)
         for sequence, command in bindings.items():
@@ -969,7 +970,7 @@ class GamePanel(tk.Frame):
         self.show_inventory(equipment_only=True)
 
     def show_settings(self):
-        window, content = self._modal("SETTINGS & ACCESSIBILITY", "Tune challenge, presentation, audio, and controls.", "860x680")
+        window, content = self._modal("AUDIO, SETTINGS & PLAYER STATS", "Audio controls are always available from the bottom bar or F10.", "900x680")
         body = tk.Frame(content, bg=self.SURFACE)
         body.pack(fill=tk.BOTH, expand=True, padx=24, pady=18)
 
@@ -979,9 +980,27 @@ class GamePanel(tk.Frame):
         reduce_animations = tk.BooleanVar(value=settings.get("reduce_animations"))
         music_volume = tk.DoubleVar(value=settings.get("music_volume") * 100)
         sfx_volume = tk.DoubleVar(value=settings.get("sfx_volume") * 100)
+        original_music_volume = settings.get("music_volume")
+        original_sfx_volume = settings.get("sfx_volume")
 
-        general = tk.LabelFrame(body, text=" GAMEPLAY & ACCESSIBILITY ", bg=self.SURFACE_ALT, fg=self.GOLD, font=("Arial", 9, "bold"), bd=1, relief=tk.FLAT)
-        general.pack(fill=tk.X)
+        weapon_damage = getattr(getattr(self.player, "equipped_weapon", None), "additional_damage", 0.0)
+        armor_defense = getattr(getattr(self.player, "equipped_armor", None), "defense_bonus", 0.0)
+        attack_power = 15 + self.player.level * 5 + int(weapon_damage)
+        stats = tk.Frame(body, bg="#0b1019", highlightbackground=self.BORDER, highlightthickness=1)
+        stats.pack(fill=tk.X, pady=(0, 12))
+        tk.Label(stats, text="PLAYER STATS", bg="#0b1019", fg=self.GOLD, font=("Arial", 9, "bold")).pack(side=tk.LEFT, padx=(16, 20), pady=13)
+        stat_text = (
+            f"{self.player.name}  |  LV {self.player.level} {class_name(self.player).upper()}  |  "
+            f"HP {self.player.hp}/{self.player.max_hp}  |  MP {self.player.mana}/100  |  "
+            f"ATK {attack_power}  |  DEF {armor_defense:.0f}  |  GOLD {self.player.coins}"
+        )
+        tk.Label(stats, text=stat_text, bg="#0b1019", fg=self.TEXT, font=("Consolas", 9, "bold")).pack(side=tk.LEFT, pady=13)
+
+        top_settings = tk.Frame(body, bg=self.SURFACE)
+        top_settings.pack(fill=tk.X)
+        general = tk.LabelFrame(top_settings, text=" GAMEPLAY & ACCESSIBILITY ", bg=self.SURFACE_ALT, fg=self.GOLD, font=("Arial", 9, "bold"), bd=1, relief=tk.FLAT, width=400, height=150)
+        general.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 6))
+        general.pack_propagate(False)
 
         def option_row(row, label, variable, values):
             tk.Label(general, text=label, bg=self.SURFACE_ALT, fg=self.TEXT, font=("Arial", 9, "bold")).grid(row=row, column=0, sticky="w", padx=14, pady=7)
@@ -994,10 +1013,19 @@ class GamePanel(tk.Frame):
         option_row(1, "Text speed", text_speed, ("Fast", "Normal", "Slow"))
         option_row(2, "Display", display_mode, ("Windowed", "Fullscreen"))
         tk.Checkbutton(general, text="Reduce movement, particles, and transition animations", variable=reduce_animations, bg=self.SURFACE_ALT, fg=self.TEXT, selectcolor="#253149", activebackground=self.SURFACE_ALT, activeforeground="#ffffff", font=("Arial", 9)).grid(row=3, column=0, columnspan=4, sticky="w", padx=12, pady=7)
-        tk.Label(general, text="Music volume", bg=self.SURFACE_ALT, fg=self.TEXT).grid(row=0, column=2, sticky="w", padx=(30, 4))
-        tk.Scale(general, variable=music_volume, from_=0, to=100, orient=tk.HORIZONTAL, bg=self.SURFACE_ALT, fg=self.TEXT, troughcolor="#253149", highlightthickness=0, length=220).grid(row=0, column=3, padx=8)
-        tk.Label(general, text="Sound volume", bg=self.SURFACE_ALT, fg=self.TEXT).grid(row=1, column=2, sticky="w", padx=(30, 4))
-        tk.Scale(general, variable=sfx_volume, from_=0, to=100, orient=tk.HORIZONTAL, bg=self.SURFACE_ALT, fg=self.TEXT, troughcolor="#253149", highlightthickness=0, length=220).grid(row=1, column=3, padx=8)
+
+        audio = tk.LabelFrame(top_settings, text=" AUDIO VOLUME ", bg="#171426", fg=self.PURPLE, font=("Arial", 10, "bold"), bd=1, relief=tk.FLAT, width=420, height=150)
+        audio.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=(6, 0))
+        audio.pack_propagate(False)
+
+        def live_audio(_value=None):
+            audio_manager.configure(music_volume.get() / 100.0, sfx_volume.get() / 100.0)
+
+        tk.Label(audio, text="MUSIC", bg="#171426", fg=self.TEXT, font=("Arial", 9, "bold")).grid(row=0, column=0, sticky="w", padx=(14, 4), pady=(8, 2))
+        tk.Scale(audio, variable=music_volume, command=live_audio, from_=0, to=100, resolution=1, orient=tk.HORIZONTAL, bg="#171426", fg=self.TEXT, troughcolor="#4b315f", activebackground=self.PURPLE, highlightthickness=0, length=255, showvalue=True).grid(row=0, column=1, padx=4, pady=(3, 0))
+        tk.Label(audio, text="SOUND FX", bg="#171426", fg=self.TEXT, font=("Arial", 9, "bold")).grid(row=1, column=0, sticky="w", padx=(14, 4), pady=2)
+        tk.Scale(audio, variable=sfx_volume, command=live_audio, from_=0, to=100, resolution=1, orient=tk.HORIZONTAL, bg="#171426", fg=self.TEXT, troughcolor="#4b315f", activebackground=self.PURPLE, highlightthickness=0, length=255, showvalue=True).grid(row=1, column=1, padx=4)
+        tk.Button(audio, text="TEST SOUND", command=lambda: (live_audio(), audio_manager.play_sound("skill")), bg="#63369a", fg="#ffffff", activebackground="#8550c5", activeforeground="#ffffff", relief=tk.FLAT, font=("Arial", 8, "bold"), padx=14, pady=5).grid(row=2, column=1, sticky="e", padx=16, pady=(0, 8))
 
         controls = tk.LabelFrame(body, text=" REMAPPABLE CONTROLS ", bg=self.SURFACE_ALT, fg=self.BLUE, font=("Arial", 9, "bold"), bd=1, relief=tk.FLAT)
         controls.pack(fill=tk.BOTH, expand=True, pady=(14, 0))
@@ -1041,8 +1069,13 @@ class GamePanel(tk.Frame):
             self.show_toast("SETTINGS SAVED")
             window.destroy()
 
+        def close_without_saving():
+            audio_manager.configure(original_music_volume, original_sfx_volume)
+            window.destroy()
+
         tk.Button(body, text="SAVE SETTINGS", command=save_changes, bg=self.GOLD, fg="#171008", activebackground="#e4b94f", relief=tk.FLAT, font=("Arial", 10, "bold"), padx=24, pady=10).pack(side=tk.RIGHT, pady=10)
-        window.bind("<Escape>", lambda _event: window.destroy())
+        window.protocol("WM_DELETE_WINDOW", close_without_saving)
+        window.bind("<Escape>", lambda _event: close_without_saving())
 
     def show_options(self):
         window, content = self._modal("OPTIONS & GUIDE", "Everything you need to continue the journey.", "900x620")
@@ -1127,6 +1160,7 @@ class GamePanel(tk.Frame):
                 ("M", "key"), ("   Open Region Map\n", "body"),
                 ("Q", "key"), ("   Open Quest Log\n", "body"),
                 ("Escape", "key"), ("   Open or close Options\n", "body"),
+                ("F10", "key"), ("   Open Audio, Settings, and Player Stats\n", "body"),
                 ("Battle Screen\n", "heading"),
                 ("A", "key"), ("   Attack\n", "body"),
                 ("D", "key"), ("   Defend\n", "body"),
