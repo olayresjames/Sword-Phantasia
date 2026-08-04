@@ -4,9 +4,9 @@
   "level": 17,
   "max_hp": 420,
   "hp": 420,
-  "mana": 100,
-  "experience": 152,
-  "coins": 281,
+  "mana": 8,
+  "experience": 62,
+  "coins": 211,
   "inventory": [
     {
       "item_name": "Axe",
@@ -150,23 +150,10 @@
       "upgrade_level": 0,
       "base_damage": 0.0,
       "quantity": 1
-    },
-    {
-      "item_name": "Tideheart Sabre",
-      "attributes": "Champion's Relic",
-      "additional_damage": 26.0,
-      "is_consumable": false,
-      "heal_amount": 0,
-      "is_armor": false,
-      "defense_bonus": 0.0,
-      "rarity": "Legendary",
-      "upgrade_level": 0,
-      "base_damage": 26.0,
-      "quantity": 1
     }
   ],
   "starting_weapon": "Axe",
-  "current_region": "frontier",
+  "current_region": "mosswood",
   "quest_progress": {
     "slime_tide": 3,
     "goblin_warband": 4,
@@ -182,8 +169,7 @@
   ],
   "defeated_minibosses": [
     "bonewyrm",
-    "thornlord",
-    "tideheart"
+    "thornlord"
   ],
   "materials": {
     "metal_scrap": 7
@@ -204,14 +190,14 @@
     "quantity": 1
   },
   "equipped_armor": {
-    "item_name": "Thornlord Mantle",
-    "attributes": "Champion's Relic",
+    "item_name": "Iron Armor",
+    "attributes": "Sturdy",
     "additional_damage": 0.0,
     "is_consumable": false,
     "heal_amount": 0,
     "is_armor": true,
-    "defense_bonus": 13.0,
-    "rarity": "Legendary",
+    "defense_bonus": 12.0,
+    "rarity": "Common",
     "upgrade_level": 0,
     "base_damage": 0.0,
     "quantity": 1

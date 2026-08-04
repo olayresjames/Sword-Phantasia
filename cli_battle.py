@@ -1,45 +1,16 @@
 import random
-import threading
-import sys
-import os
-from item import Item
+from audio_manager import audio_manager
+from game_data import scale_enemy_stats, scale_player_damage, scale_rewards
+from game_settings import settings
+from loot_data import roll_region_loot
 
-def resource_path(relative_path):
-    """ Get absolute path to resource, works for dev and for PyInstaller """
-    try:
-        base_path = sys._MEIPASS
-    except Exception:
-        base_path = os.path.abspath(".")
-    return os.path.join(base_path, relative_path)
 
-try:
-    import pygame
-    pygame.mixer.init()
-    def play_sound(action):
-        try:
-            if action == "attack":
-                pygame.mixer.Sound(resource_path("assets/audio/attack.mp3")).play()
-            elif action == "skill":
-                pygame.mixer.Sound(resource_path("assets/audio/skill.mp3")).play()
-            elif action == "damage":
-                pygame.mixer.Sound(resource_path("assets/audio/damage.mp3")).play()
-        except (FileNotFoundError, pygame.error):
-            pass
-            
-    def play_bgm(start=True):
-        try:
-            if start:
-                pygame.mixer.music.load(resource_path("assets/audio/bgm_battle.mp3"))
-                pygame.mixer.music.play(-1)
-            else:
-                pygame.mixer.music.stop()
-        except (FileNotFoundError, pygame.error):
-            pass
-except ImportError:
-    def play_sound(action):
-        pass
-    def play_bgm(start=True):
-        pass
+def play_sound(action):
+    audio_manager.play_sound(action)
+
+
+def play_bgm(start=True):
+    audio_manager.play_music("battle") if start else audio_manager.stop_music()
 
 class Battle:
     def __init__(self, player, is_boss=False):
@@ -50,7 +21,6 @@ class Battle:
         if self.is_boss:
             monster_name = "Demon King Koji"
             monster_max_hp = 500
-            monster_hp = monster_max_hp
             monster_attack = 45
         else:
             monster_names = ["Slime", "Goblin", "Skeleton"]
@@ -59,11 +29,13 @@ class Battle:
             level_bonus_hp = (self.player.level - 1) * 15
             level_bonus_atk = (self.player.level - 1) * 3
             monster_max_hp = random.randint(30, 79) + level_bonus_hp
-            monster_hp = monster_max_hp
             monster_attack = random.randint(5, 14) + level_bonus_atk
 
+        monster_max_hp, monster_attack = scale_enemy_stats(monster_max_hp, monster_attack, settings.get("difficulty"))
+        monster_hp = monster_max_hp
+
         weapon_dmg = self.player.equipped_weapon.additional_damage if getattr(self.player, 'equipped_weapon', None) else 0
-        player_attack = 15 + (self.player.level * 5) + int(weapon_dmg)
+        player_attack = scale_player_damage(15 + (self.player.level * 5) + int(weapon_dmg), settings.get("difficulty"))
         print(f"\nA wild {monster_name} appears! (HP: {monster_hp})")
         play_bgm(True)
 
@@ -131,7 +103,7 @@ class Battle:
                     item_choice = int(input("Select item to use: "))
                     if 1 <= item_choice <= len(consumables):
                         used_item = consumables[item_choice - 1]
-                        self.player.inventory.remove(used_item)
+                        self.player.consume_item(used_item)
                         self.player.hp = min(self.player.hp + used_item.heal_amount, self.player.max_hp)
                         print(f"You used {used_item.item_name} and recovered {used_item.heal_amount} HP!")
                     elif item_choice == 0:
@@ -160,17 +132,13 @@ class Battle:
     def reward_player(self):
         exp = random.randint(20, 49)
         coins = random.randint(10, 29)
+        exp, coins = scale_rewards(exp, coins, settings.get("difficulty"))
         self.player.add_experience(exp)
         self.player.add_coins(coins)
         print(f"You gained {exp} EXP and {coins} coins!")
         
         # 30% chance for a weapon drop
         if not self.is_boss and random.randint(0, 99) < 30:
-            loot_pool = [
-                Item("Rusty Dagger", "Basic", 8.0),
-                Item("Bone Club", "Crude", 11.0),
-                Item("Slime Sword", "Sticky", 13.0)
-            ]
-            dropped_item = random.choice(loot_pool)
-            self.player.inventory.append(dropped_item)
+            dropped_item = roll_region_loot(getattr(self.player, "current_region", "frontier"))
+            self.player.add_item(dropped_item)
             print(f"The monster dropped a {dropped_item.item_name}!")

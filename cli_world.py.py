@@ -2,13 +2,14 @@ import random
 import sys
 from item import Item
 from cli_battle import Battle
+from game_data import SHOP_INVENTORY
 
 class WorldTraversion:
     def __init__(self, player):
         self.player = player
         if getattr(self.player, 'equipped_weapon', None) is None:
             self.player.equipped_weapon = Item("Sword", "Sharp Blade", 10.0)
-            self.player.inventory.append(self.player.equipped_weapon)
+            self.player.add_item(self.player.equipped_weapon, auto_salvage=False)
 
     def start_adventure(self):
         while True:
@@ -123,17 +124,20 @@ class WorldTraversion:
         if not weapon:
             print("\nYou don't have an equipped weapon to upgrade!")
             return
-        print(f"\nWelcome to the Blacksmith!\nWeapon: {weapon.item_name} | Damage bonus: {weapon.additional_damage}")
-        print(f"Coins: {self.player.coins} | Upgrade cost: 50 coins\nUpgrade? (1: Yes, 2: No)")
+        cost = weapon.upgrade_cost()
+        print(f"\nWelcome to the Blacksmith!\nWeapon: {weapon.item_name} {weapon.forge_label()} | Damage bonus: {weapon.additional_damage}")
+        if cost is None:
+            print("This weapon has reached its forge limit.")
+            return
+        print(f"Coins: {self.player.coins} | Upgrade cost: {cost} coins\nUpgrade? (1: Yes, 2: No)")
         
         try: choice = int(input("\nEnter choice: "))
         except ValueError: choice = 2
         
         if choice == 1:
-            if self.player.coins >= 50:
-                print("Applying a 20% upgrade...")
-                weapon.apply_upgrades(20)
-                self.player.spend_coins(50)
+            if self.player.coins >= cost:
+                weapon.upgrade_weapon()
+                self.player.spend_coins(cost)
                 print(f"Upgrade complete! New bonus: {weapon.additional_damage}")
             else:
                 print("\nYou don't have enough coins.")
@@ -142,14 +146,7 @@ class WorldTraversion:
 
     def visit_shop(self):
         print(f"\nWelcome to the Shop! You have {self.player.coins} coins.")
-        shop_items = [
-            {"item": Item("Iron Sword", "Sturdy", 15.0), "cost": 30},
-            {"item": Item("Steel Axe", "Heavy", 20.0), "cost": 50},
-            {"item": Item("Excalibur", "Legendary", 50.0), "cost": 200},
-            {"item": Item("Healing Potion", "Consumable", 0.0, is_consumable=True, heal_amount=50), "cost": 15},
-            {"item": Item("Leather Armor", "Light", 0.0, is_armor=True, defense_bonus=5.0), "cost": 40},
-            {"item": Item("Iron Armor", "Sturdy", 0.0, is_armor=True, defense_bonus=12.0), "cost": 100}
-        ]
+        shop_items = tuple({"item": entry.create_item(), "cost": entry.cost} for entry in SHOP_INVENTORY)
         
         for idx, entry in enumerate(shop_items):
             i = entry["item"]
@@ -168,7 +165,7 @@ class WorldTraversion:
                 if self.player.coins >= entry['cost']:
                     self.player.spend_coins(entry['cost'])
                     new_item = Item(entry['item'].item_name, entry['item'].attributes, entry['item'].additional_damage, getattr(entry['item'], 'is_consumable', False), getattr(entry['item'], 'heal_amount', 0), getattr(entry['item'], 'is_armor', False), getattr(entry['item'], 'defense_bonus', 0.0))
-                    self.player.inventory.append(new_item)
+                    self.player.add_item(new_item)
                     print(f"You bought {new_item.item_name} for {entry['cost']} coins!")
                 else:
                     print("Not enough coins!")

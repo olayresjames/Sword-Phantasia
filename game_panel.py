@@ -4,11 +4,17 @@ import tkinter as tk
 from tkinter import messagebox, ttk
 
 from battle_panel import BattlePanel, hero_sprite_path
+from character import Character, experience_to_next_level
 from credits_panel import EndCreditsScreen
+from exploration import LANDMARK_LABELS, MATERIAL_LABELS, choose_exploration_event
+from game_data import SHOP_INVENTORY
+from game_settings import apply_display_mode, key_sequence, settings
+from audio_manager import audio_manager
 from item import Item
-from quests import QUESTS, completed_quest_keys, primary_objective, quest_progress
-from skills import CLASS_SKILLS, class_name, unlocked_skills
-from world_data import REGIONS, current_region
+from loot_data import RARITY_COLORS, roll_region_loot
+from quests import QUESTS, completed_quest_keys, primary_objective, quest_objective_label, quest_progress, record_event
+from skills import CLASS_SKILLS, class_name, mastery_rank
+from world_data import MINIBOSSES, MINIBOSS_QUESTS, REGIONS, all_minibosses_defeated, current_region, defeated_miniboss_keys, miniboss_for_region
 
 
 class GamePanel(tk.Frame):
@@ -217,6 +223,23 @@ class GamePanel(tk.Frame):
         self._action_button(settlement, "SHOP", "Shop", 0, 0, "Purchase equipment and supplies")
         self._action_button(settlement, "SMITH", "Blacksmith", 0, 1, "Upgrade your equipped weapon")
 
+        self.champion_btn = tk.Button(
+            panel,
+            text="REGION CHAMPION  •  LOCKED",
+            command=lambda: self.action_performed("Challenge Region Champion"),
+            bg="#191e2a",
+            fg="#68738d",
+            disabledforeground="#68738d",
+            relief=tk.FLAT,
+            bd=0,
+            font=("Arial", 9, "bold"),
+            cursor="hand2",
+            pady=11,
+            state=tk.DISABLED,
+        )
+        self.champion_btn.pack(fill=tk.X, padx=18, pady=(18, 0))
+        self.btn_dict["Challenge Region Champion"] = self.champion_btn
+
         self.boss_btn = tk.Button(
             panel,
             text="FINAL OBJECTIVE  •  LOCKED",
@@ -231,7 +254,7 @@ class GamePanel(tk.Frame):
             pady=11,
             state=tk.DISABLED,
         )
-        self.boss_btn.pack(fill=tk.X, padx=18, pady=(20, 8))
+        self.boss_btn.pack(fill=tk.X, padx=18, pady=(8, 8))
         self.btn_dict["Challenge Demon King"] = self.boss_btn
 
         self.action_hint = tk.StringVar(value="Choose an action to continue your journey.")
@@ -276,6 +299,7 @@ class GamePanel(tk.Frame):
         self._utility_button(bar, "INVENTORY  [I]", "Inventory")
         self._utility_button(bar, "EQUIPMENT  [E]", "Equip")
         self._utility_button(bar, "OPTIONS  [ESC]", "Options")
+        self._utility_button(bar, "SETTINGS", "Settings")
         self._utility_button(bar, "SAVE GAME", "Save Game")
         self._utility_button(bar, "QUIT", "Quit", danger=True, side=tk.RIGHT)
 
@@ -294,20 +318,22 @@ class GamePanel(tk.Frame):
 
     def _bind_shortcuts(self):
         root = self.winfo_toplevel()
+        for sequence in getattr(self, "_shortcut_sequences", ()):
+            root.unbind(sequence)
         bindings = {
-            "<KeyPress-w>": "Walk Forward",
+            key_sequence(settings.key("walk_forward")): "Walk Forward",
             "<KeyPress-Up>": "Walk Forward",
-            "<KeyPress-s>": "Walk Back",
+            key_sequence(settings.key("walk_back")): "Walk Back",
             "<KeyPress-Down>": "Walk Back",
-            "<KeyPress-a>": "Walk Left",
+            key_sequence(settings.key("walk_left")): "Walk Left",
             "<KeyPress-Left>": "Walk Left",
-            "<KeyPress-d>": "Walk Right",
+            key_sequence(settings.key("walk_right")): "Walk Right",
             "<KeyPress-Right>": "Walk Right",
-            "<KeyPress-i>": "Inventory",
-            "<KeyPress-e>": "Equip",
-            "<KeyPress-m>": "Region Map",
-            "<KeyPress-q>": "Quest Log",
-            "<Escape>": "Options",
+            key_sequence(settings.key("inventory")): "Inventory",
+            key_sequence(settings.key("equip")): "Equip",
+            key_sequence(settings.key("region_map")): "Region Map",
+            key_sequence(settings.key("quest_log")): "Quest Log",
+            key_sequence(settings.key("options")): "Options",
         }
         self._shortcut_sequences = tuple(bindings)
         for sequence, command in bindings.items():
@@ -329,15 +355,16 @@ class GamePanel(tk.Frame):
         weapon = self.player.equipped_weapon if getattr(self.player, "equipped_weapon", None) else None
         armor = self.player.equipped_armor if getattr(self.player, "equipped_armor", None) else None
         self.hero_name_lbl.config(text=self.player.name)
-        self.level_lbl.config(text=f"LEVEL {self.player.level}  •  {class_name(self.player).upper()}  •  {len(unlocked_skills(self.player))}/4 SKILLS")
+        self.level_lbl.config(text=f"LEVEL {self.player.level}  •  {class_name(self.player).upper()}  •  MASTERY {mastery_rank(self.player)}")
         self.gold_header_lbl.config(text=f"◆ {self.player.coins} G")
         self.hp_lbl.config(text=f"{max(0, self.player.hp)} / {self.player.max_hp}")
         self._animate_bar(self.hp_bar, max(0, self.player.hp), self.player.max_hp)
         self.mana_lbl.config(text=f"{self.player.mana} / 100")
         self._animate_bar(self.mana_bar, self.player.mana, 100)
-        self.xp_lbl.config(text=f"{self.player.experience} / 100")
-        self._animate_bar(self.xp_bar, self.player.experience, 100)
-        self.weapon_lbl.config(text=weapon.item_name if weapon else "None")
+        xp_required = experience_to_next_level(self.player.level)
+        self.xp_lbl.config(text=f"{self.player.experience} / {xp_required}")
+        self._animate_bar(self.xp_bar, self.player.experience, xp_required)
+        self.weapon_lbl.config(text=f"{weapon.item_name} {weapon.forge_label()}" if weapon else "None")
         self.armor_lbl.config(text=armor.item_name if armor else "None")
         self.location_lbl.config(text=self.location_name)
         self.location_desc_lbl.config(text=self.location_description)
@@ -346,16 +373,41 @@ class GamePanel(tk.Frame):
         self._set_button_state("Equip", bool(equippables), "No equipment available")
         self._set_button_state("Blacksmith", weapon is not None, "Equip a weapon to use the smith")
 
-        boss_ready = self.player.level >= 10 and self.player.current_region == "throne"
+        region_key = self.player.current_region
+        region_boss = MINIBOSSES.get(region_key)
+        available_boss = miniboss_for_region(self.player, region_key)
+        defeated_bosses = defeated_miniboss_keys(self.player)
+        if available_boss:
+            self.champion_btn.config(text=f"CHALLENGE  •  {available_boss.name.upper()}", state=tk.NORMAL, bg="#8a6427", fg="#ffffff")
+        elif region_boss and region_boss.boss_key in defeated_bosses:
+            self.champion_btn.config(text="REGION CHAMPION  •  DEFEATED", state=tk.DISABLED, bg="#21352e", fg=self.GREEN)
+        elif region_boss:
+            quest_title = next(quest.title for quest in QUESTS if quest.key == MINIBOSS_QUESTS[region_key])
+            self.champion_btn.config(text=f"COMPLETE  •  {quest_title.upper()}", state=tk.DISABLED, bg="#191e2a", fg="#68738d")
+        else:
+            self.champion_btn.config(text="REGION CHAMPIONS  •  RETURN TO THE REALM", state=tk.DISABLED, bg="#191e2a", fg="#68738d")
+
+        guardians_ready = all_minibosses_defeated(self.player)
+        boss_ready = self.player.level >= 10 and region_key == "throne" and guardians_ready
         if boss_ready:
             self.boss_btn.config(text="CHALLENGE DEMON KING", state=tk.NORMAL, bg="#663795", fg="#ffffff")
             self.boss_btn.bind("<Enter>", lambda event: event.widget.config(bg="#8750bc"))
             self.boss_btn.bind("<Leave>", lambda event: event.widget.config(bg="#663795"))
             self.objective_lbl.config(text=primary_objective(self.player))
         else:
-            boss_text = "FINAL OBJECTIVE  •  TRAVEL TO THRONE" if self.player.level >= 10 else f"FINAL OBJECTIVE  •  LEVEL {self.player.level}/10"
+            if self.player.level < 10:
+                boss_text = f"FINAL OBJECTIVE  •  LEVEL {self.player.level}/10"
+            elif not guardians_ready:
+                boss_text = f"DEFEAT REGION CHAMPIONS  •  {len(defeated_bosses)}/3"
+            else:
+                boss_text = "FINAL OBJECTIVE  •  TRAVEL TO THRONE"
             self.boss_btn.config(text=boss_text, state=tk.DISABLED, bg="#191e2a", fg="#68738d")
             self.objective_lbl.config(text=primary_objective(self.player))
+
+        if available_boss:
+            self.objective_lbl.config(text=f"Challenge the region champion: {available_boss.name}")
+        elif self.player.level >= 10 and not guardians_ready:
+            self.objective_lbl.config(text=f"Break the champion seals: {len(defeated_bosses)}/3 defeated")
 
     def _set_button_state(self, command, enabled, disabled_hint):
         button = self.btn_dict.get(command)
@@ -375,12 +427,16 @@ class GamePanel(tk.Frame):
         bar.config(maximum=maximum)
         start = float(bar["value"])
         target = max(0, min(float(target), float(maximum)))
+        if settings.get("reduce_animations"):
+            bar["value"] = target
+            self._bar_jobs.pop(str(bar), None)
+            return
         steps = 10
 
         def advance(step=1):
             bar["value"] = start + (target - start) * step / steps
             if step < steps:
-                self._bar_jobs[str(bar)] = self.after(24, lambda: advance(step + 1))
+                self._bar_jobs[str(bar)] = self.after(settings.delay(24), lambda: advance(step + 1))
             else:
                 self._bar_jobs.pop(str(bar), None)
 
@@ -415,12 +471,181 @@ class GamePanel(tk.Frame):
             self.append_text("No lesser creature dares approach the Primordial Throne.", "special")
             return
         self.append_text(f"A hostile presence emerges in {region.name}!", "warning")
-        battle = BattlePanel(self.winfo_toplevel(), self.player)
-        self.append_text(f"You return from battle with {battle.monster_name} behind you.", "success")
+        battle = self._run_battle()
+        if battle is None:
+            return
+        if battle.victory:
+            self.append_text(f"You return from battle with {battle.monster_name} behind you.", "success")
+        else:
+            return
         self.player.save_to_file()
         self.save_status_lbl.config(text="AUTOSAVED", fg=self.GREEN)
         self.show_toast("GAME AUTOSAVED")
         self.update_stats()
+
+    def _run_battle(self, monster_spec=None, is_boss=False, is_miniboss=False):
+        encounter_spec = monster_spec
+        while True:
+            battle = BattlePanel(
+                self.winfo_toplevel(),
+                self.player,
+                is_boss=is_boss,
+                monster_spec=encounter_spec,
+                is_miniboss=is_miniboss,
+            )
+            encounter_spec = battle.monster_spec
+            if battle.retry_requested:
+                self.append_text(f"You rise to challenge {battle.monster_name} again.", "special")
+                continue
+            if battle.load_requested:
+                loaded = Character.load_from_file()
+                if loaded:
+                    self.player = loaded
+                    region = current_region(self.player)
+                    self.location_name, self.location_description = region.locations["back"]
+                    self.append_text("The last save is restored. The failed battle never happened.", "success")
+                    self.update_stats()
+                    self.show_toast("LAST SAVE LOADED", self.BLUE)
+                else:
+                    self.append_text("No save could be loaded. You return to camp instead.", "warning")
+                    self.player.hp = max(1, self.player.max_hp // 2)
+                    self.player.mana = max(self.player.mana, 40)
+                return None
+            if battle.title_requested:
+                self._return_to_title_now()
+                return None
+            if battle.defeated:
+                region = current_region(self.player)
+                self.location_name, self.location_description = region.locations["back"]
+                self.append_text(f"You awaken at {self.location_name}, having lost {battle.defeat_penalty} gold.", "warning")
+                self.player.save_to_file()
+                self.save_status_lbl.config(text="AUTOSAVED", fg=self.GREEN)
+                self.update_stats()
+            return battle
+
+    def _return_to_title_now(self):
+        root = self.winfo_toplevel()
+        self.destroy()
+        from main_menu import MainMenu
+        MainMenu(root)
+
+    def resolve_exploration_event(self):
+        region = current_region(self.player)
+        event = choose_exploration_event(self.player, region.key)
+        self.append_text(f"{event.title}: {event.description}", "special")
+        updates, completions = [], []
+
+        if event.kind == "treasure":
+            region_index = tuple(REGIONS).index(region.key)
+            gold = random.randint(12 + region_index * 8, 28 + region_index * 14)
+            self.player.add_coins(gold)
+            self.append_text(f"The cache contains {gold} gold.", "reward")
+            if random.randint(1, 100) <= 35:
+                item = roll_region_loot(region.key)
+                self.player.add_item(item)
+                self.append_text(f"You also discover a {item.rarity} {item.item_name}.", "reward")
+
+        elif event.kind == "material":
+            updates, completions = self._gather_material(event.target)
+
+        elif event.kind == "landmark":
+            if event.target not in self.player.discovered_landmarks:
+                self.player.discovered_landmarks.append(event.target)
+            updates, completions = record_event(self.player, "landmark", event.target)
+            self.location_name = LANDMARK_LABELS.get(event.target, event.title)
+            self.location_description = event.description
+            self.append_text(f"Landmark discovered: {self.location_name}.", "reward")
+
+        elif event.kind == "choice":
+            updates, completions = self._resolve_story_choice(event)
+
+        elif event.kind == "shrine":
+            pray = messagebox.askyesno(event.title, f"{event.description}\n\nCommune with the shrine?", parent=self)
+            if pray:
+                hp_before, mana_before = self.player.hp, self.player.mana
+                self.player.hp = min(self.player.max_hp, self.player.hp + max(25, self.player.max_hp // 4))
+                self.player.mana = min(100, self.player.mana + 30)
+                self.append_text(f"The shrine restores {self.player.hp - hp_before} HP and {self.player.mana - mana_before} MP.", "success")
+            else:
+                self.append_text("You leave the shrine undisturbed.", "system")
+
+        elif event.kind == "trap":
+            disarm = messagebox.askyesno(event.title, f"{event.description}\n\nAttempt to disarm it for materials?", parent=self)
+            if disarm and random.randint(1, 100) <= 65:
+                self.append_text("You disarm the trap and recover its rare components.", "success")
+                updates, completions = self._gather_material(event.target)
+            elif disarm:
+                damage = max(8, self.player.max_hp // 8)
+                self.player.hp = max(1, self.player.hp - damage)
+                self.append_text(f"The trap triggers for {damage} damage, but you escape alive.", "warning")
+            else:
+                mana_loss = min(self.player.mana, 5)
+                self.player.mana -= mana_loss
+                self.append_text(f"A careful detour costs time and {mana_loss} MP.", "system")
+
+        elif event.kind == "merchant":
+            item = roll_region_loot(region.key)
+            rarity_factor = {"Common": 1.0, "Uncommon": 1.3, "Rare": 1.7, "Epic": 2.2, "Legendary": 3.0}.get(item.rarity, 1.0)
+            region_index = tuple(REGIONS).index(region.key)
+            price = int(round((20 + region_index * 20) * rarity_factor / 5.0) * 5)
+            buy = messagebox.askyesno(event.title, f"{event.description}\n\n{item.rarity} {item.item_name} — {price} gold\n\nPurchase it?", parent=self)
+            if buy and self.player.spend_coins(price):
+                self.player.add_item(item)
+                self.append_text(f"You purchase {item.item_name} for {price} gold.", "reward")
+            elif buy:
+                self.append_text("The merchant sees your empty purse and closes the case.", "warning")
+            else:
+                self.append_text("You decline the merchant's offer.", "system")
+
+        self._report_quest_progress(updates, completions)
+        self.player.save_to_file()
+        self.save_status_lbl.config(text="AUTOSAVED", fg=self.GREEN)
+        self.update_stats()
+
+    def _gather_material(self, material_key):
+        label = MATERIAL_LABELS.get(material_key, material_key.replace("_", " ").title())
+        self.player.materials[material_key] = self.player.materials.get(material_key, 0) + 1
+        self.append_text(f"Material acquired: {label} ({self.player.materials[material_key]} owned).", "reward")
+        return record_event(self.player, "collect", material_key)
+
+    def _resolve_story_choice(self, event):
+        prompts = {
+            "aid_pilgrim": "Give the pilgrim 10 gold and escort them toward camp?",
+            "guide_scout": "Guide the scout through the dangerous warband trails?",
+            "free_spirit": "Break the binding sigil and release the spirit?",
+            "spare_shade": "Spare the shade and hear its secret?",
+        }
+        accepted = messagebox.askyesno(event.title, f"{event.description}\n\n{prompts.get(event.target, 'Offer your help?')}", parent=self)
+        decision = "aid" if accepted else "refuse"
+        self.player.story_choices.append(f"{event.target}:{decision}")
+        if accepted:
+            if event.target == "aid_pilgrim":
+                donation = min(10, self.player.coins)
+                self.player.coins -= donation
+                self.append_text(f"You give {donation} gold. The pilgrim blesses your journey.", "success")
+            elif event.target == "guide_scout":
+                self.player.add_coins(30)
+                self.append_text("The grateful scout shares a hidden warband purse containing 30 gold.", "reward")
+            elif event.target == "free_spirit":
+                self.player.mana = 100
+                self.append_text("The freed spirit restores your MP before fading into peace.", "success")
+            elif event.target == "spare_shade":
+                self.player.materials["void_ember"] = self.player.materials.get("void_ember", 0) + 1
+                self.append_text("The shade reveals a Void Ember and the weakness of the throne.", "reward")
+                extra_updates, extra_completions = record_event(self.player, "collect", "void_ember")
+                choice_updates, choice_completions = record_event(self.player, "choice", event.target)
+                return choice_updates + extra_updates, choice_completions + extra_completions
+        else:
+            self.append_text("You refuse the request and continue on your chosen path.", "system")
+        return record_event(self.player, "choice", event.target)
+
+    def _report_quest_progress(self, updates, completions):
+        for quest, progress in updates:
+            self.append_text(f"Quest progress: {quest.title} — {progress}/{quest.required}.", "success")
+        for quest, reward_item in completions:
+            item_text = f" and {reward_item.item_name}" if reward_item else ""
+            self.append_text(f"Quest complete: {quest.title}! +{quest.reward_exp} EXP, +{quest.reward_gold} gold{item_text}.", "reward")
+            self.show_toast(f"QUEST COMPLETE  •  {quest.title.upper()}", self.GOLD)
 
     def rest(self):
         hp_before, mana_before = self.player.hp, self.player.mana
@@ -470,7 +695,9 @@ class GamePanel(tk.Frame):
             name_lbl.config(text=region.name)
             level_lbl.config(text=f"UNLOCK LEVEL  {region.unlock_level}")
             monsters = ", ".join(monster.name for monster in region.monsters) or "Demon King Koji"
-            description_lbl.config(text=f"{region.description}\n\nENCOUNTERS\n{monsters}")
+            champion = MINIBOSSES.get(region.key)
+            champion_text = f"\n\nREGION CHAMPION\n{champion.name}" if champion else ""
+            description_lbl.config(text=f"{region.description}\n\nENCOUNTERS\n{monsters}{champion_text}")
             if current:
                 travel_btn.config(text="CURRENT REGION", state=tk.DISABLED, bg="#252b37")
             elif not unlocked:
@@ -531,7 +758,7 @@ class GamePanel(tk.Frame):
             status_lbl.config(text="COMPLETED" if is_complete else f"PROGRESS  {progress} / {quest.required}", fg=self.GREEN if is_complete else self.GOLD)
             item_reward = f" + {quest.reward_item[0]}" if quest.reward_item else ""
             region_name = REGIONS[quest.region].name
-            description_lbl.config(text=f"{quest.description}\n\nREGION\n{region_name}\n\nREWARD\n{quest.reward_exp} EXP  •  {quest.reward_gold} GOLD{item_reward}")
+            description_lbl.config(text=f"{quest.description}\n\nOBJECTIVE\n{quest_objective_label(quest)}\n\nREGION\n{region_name}\n\nREWARD\n{quest.reward_exp} EXP  •  {quest.reward_gold} GOLD{item_reward}")
 
         listbox.bind("<<ListboxSelect>>", on_select)
 
@@ -540,45 +767,49 @@ class GamePanel(tk.Frame):
         if not weapon:
             self.show_toast("EQUIP A WEAPON FIRST", self.RED)
             return
-        window, content = self._modal("THE BLACKSMITH", "Temper steel. Sharpen destiny.", "600x430")
+        window, content = self._modal("THE BLACKSMITH", "Five forge tiers. Linear power. Rising cost.", "600x460")
         tk.Label(content, text="EQUIPPED WEAPON", font=("Arial", 9, "bold"), fg=self.MUTED, bg=self.SURFACE).pack(anchor="w", padx=28, pady=(24, 5))
-        tk.Label(content, text=weapon.item_name, font=("Georgia", 24, "bold"), fg=self.TEXT, bg=self.SURFACE).pack(anchor="w", padx=28)
+        tk.Label(content, text=f"{weapon.item_name}  {weapon.forge_label()}", font=("Georgia", 24, "bold"), fg=self.TEXT, bg=self.SURFACE).pack(anchor="w", padx=28)
 
         comparison = tk.Frame(content, bg=self.SURFACE_ALT)
         comparison.pack(fill=tk.X, padx=28, pady=22)
         current = weapon.additional_damage
-        upgraded = current * 1.20
+        upgraded = weapon.next_upgrade_damage()
         tk.Label(comparison, text=f"CURRENT\n{current:.1f} DMG", font=("Consolas", 12, "bold"), fg=self.MUTED, bg=self.SURFACE_ALT, justify=tk.CENTER).pack(side=tk.LEFT, expand=True, pady=18)
         tk.Label(comparison, text="➜", font=("Arial", 20, "bold"), fg=self.GOLD, bg=self.SURFACE_ALT).pack(side=tk.LEFT)
-        tk.Label(comparison, text=f"AFTER UPGRADE\n{upgraded:.1f} DMG", font=("Consolas", 12, "bold"), fg=self.GREEN, bg=self.SURFACE_ALT, justify=tk.CENTER).pack(side=tk.LEFT, expand=True, pady=18)
+        after_text = f"AFTER +{weapon.upgrade_level + 1}\n{upgraded:.1f} DMG" if not weapon.at_max_upgrade else f"FORGE LIMIT\n{current:.1f} DMG"
+        tk.Label(comparison, text=after_text, font=("Consolas", 12, "bold"), fg=self.GREEN if not weapon.at_max_upgrade else self.GOLD, bg=self.SURFACE_ALT, justify=tk.CENTER).pack(side=tk.LEFT, expand=True, pady=18)
 
-        can_afford = self.player.coins >= 50
-        cost_lbl = tk.Label(content, text=f"COST  50 G    •    FUNDS  {self.player.coins} G", font=("Arial", 10, "bold"), fg=self.GOLD if can_afford else self.RED, bg=self.SURFACE)
+        cost = weapon.upgrade_cost()
+        can_afford = cost is not None and self.player.coins >= cost
+        if weapon.is_legacy_upgrade:
+            cost_text = f"LEGACY WEAPON  •  PRESERVED ABOVE THE +{weapon.max_upgrade_level} CAP"
+        elif weapon.at_max_upgrade:
+            cost_text = f"MAXIMUM FORGE TIER  •  +{weapon.max_upgrade_level}"
+        else:
+            cost_text = f"COST  {cost} G    •    FUNDS  {self.player.coins} G"
+        cost_lbl = tk.Label(content, text=cost_text, font=("Arial", 10, "bold"), fg=self.GOLD if can_afford or weapon.at_max_upgrade else self.RED, bg=self.SURFACE)
         cost_lbl.pack()
 
         def upgrade():
-            if not self.player.spend_coins(50):
+            current_cost = weapon.upgrade_cost()
+            if current_cost is None or not self.player.spend_coins(current_cost):
                 return
-            weapon.apply_upgrades(20)
-            self.append_text(f"The blacksmith upgrades {weapon.item_name} to {weapon.additional_damage:.1f} damage.", "reward")
+            if not weapon.upgrade_weapon():
+                self.player.add_coins(current_cost)
+                return
+            self.append_text(f"The blacksmith forges {weapon.item_name} to {weapon.forge_label()} and {weapon.additional_damage:.1f} damage.", "reward")
             self.update_stats()
             self._pulse_label(self.gold_header_lbl, "#ffffff")
             self.show_toast("WEAPON UPGRADED", self.GOLD)
             window.destroy()
 
-        button = self._modal_button(content, "UPGRADE WEAPON", upgrade, self.GOLD, "#c99a3e")
+        button = self._modal_button(content, "FORGE WEAPON" if cost is not None else "FORGE LIMIT REACHED", upgrade, self.GOLD, "#c99a3e")
         button.config(state=tk.NORMAL if can_afford else tk.DISABLED, bg=self.GOLD if can_afford else "#252b37", fg="#171008" if can_afford else self.MUTED)
 
     def visit_shop(self):
         window, content = self._modal("THE MERCHANT", "Equipment and supplies for the road ahead.", "760x540")
-        shop_items = [
-            {"item": Item("Iron Sword", "Sturdy", 15.0), "cost": 30},
-            {"item": Item("Steel Axe", "Heavy", 20.0), "cost": 50},
-            {"item": Item("Excalibur", "Legendary", 50.0), "cost": 200},
-            {"item": Item("Healing Potion", "Consumable", 0.0, is_consumable=True, heal_amount=50), "cost": 15},
-            {"item": Item("Leather Armor", "Light", 0.0, is_armor=True, defense_bonus=5.0), "cost": 40},
-            {"item": Item("Iron Armor", "Sturdy", 0.0, is_armor=True, defense_bonus=12.0), "cost": 100},
-        ]
+        shop_items = tuple({"item": entry.create_item(), "cost": entry.cost} for entry in SHOP_INVENTORY)
 
         self._currency_strip(content)
         body = tk.Frame(content, bg=self.SURFACE)
@@ -623,9 +854,10 @@ class GamePanel(tk.Frame):
             if not self.player.spend_coins(entry["cost"]):
                 return
             source = entry["item"]
-            new_item = Item(source.item_name, source.attributes, source.additional_damage, source.is_consumable, source.heal_amount, source.is_armor, source.defense_bonus)
-            self.player.inventory.append(new_item)
-            self.append_text(f"Purchased {new_item.item_name} for {entry['cost']} gold.", "reward")
+            new_item = Item(source.item_name, source.attributes, source.additional_damage, source.is_consumable, source.heal_amount, source.is_armor, source.defense_bonus, source.rarity, source.upgrade_level, source.base_damage)
+            result = self.player.add_item(new_item)
+            outcome = " (stacked)" if result["outcome"] == "stacked" else ""
+            self.append_text(f"Purchased {new_item.item_name}{outcome} for {entry['cost']} gold.", "reward")
             self.update_stats()
             self._pulse_label(self.gold_header_lbl, "#ffffff")
             self.show_toast(f"ACQUIRED  •  {new_item.item_name.upper()}", self.GOLD)
@@ -639,10 +871,20 @@ class GamePanel(tk.Frame):
         subtitle = "Choose what your hero carries into battle." if equipment_only else "Review, equip, or use collected items."
         window, content = self._modal(title, subtitle, "800x560")
         self._currency_strip(content)
+        material_summary = ", ".join(
+            f"{MATERIAL_LABELS.get(key, key.replace('_', ' ').title())} ×{amount}"
+            for key, amount in sorted(self.player.materials.items()) if amount
+        ) or "None collected"
+        tk.Label(content, text=f"PACK CAPACITY  {self.player.inventory_slots_used}/{self.player.inventory_limit} SLOTS", font=("Arial", 8, "bold"), fg=self.BLUE, bg=self.SURFACE, anchor="w").pack(fill=tk.X, padx=24, pady=(0, 3))
+        tk.Label(content, text=f"QUEST MATERIALS  •  {material_summary}", font=("Arial", 8, "bold"), fg=self.GOLD, bg=self.SURFACE, anchor="w", wraplength=730).pack(fill=tk.X, padx=24, pady=(0, 3))
         help_text = "Select an item, then choose EQUIP ITEM. Double-clicking also equips it." if equipment_only else "Select an item to inspect it. Double-click to equip or use it. ◆ marks equipped gear."
         tk.Label(content, text=help_text, font=("Arial", 9), fg="#aeb8cc", bg=self.SURFACE, anchor="w").pack(fill=tk.X, padx=24, pady=(0, 3))
 
-        candidates = [item for item in self.player.inventory if not equipment_only or not item.is_consumable]
+        rarity_order = {"Legendary": 0, "Epic": 1, "Rare": 2, "Uncommon": 3, "Common": 4}
+        candidates = sorted(
+            (item for item in self.player.inventory if not equipment_only or not item.is_consumable),
+            key=lambda item: (0 if item.is_consumable else 1 if item.is_armor else 2, rarity_order.get(item.rarity, 5), item.item_name.lower()),
+        )
         body = tk.Frame(content, bg=self.SURFACE)
         body.pack(fill=tk.BOTH, expand=True, padx=22, pady=(8, 18))
         listbox = tk.Listbox(body, bg="#0b1019", fg=self.TEXT, selectbackground="#3b4d70", selectforeground="#ffffff", font=("Consolas", 11), relief=tk.FLAT, activestyle="none")
@@ -661,16 +903,23 @@ class GamePanel(tk.Frame):
 
         for item in candidates:
             marker = "◆" if item is self.player.equipped_weapon or item is self.player.equipped_armor else " "
-            listbox.insert(tk.END, f" {marker} {item.item_name}")
+            rarity = getattr(item, "rarity", "Common")
+            quantity = f" x{item.quantity}" if item.is_consumable else ""
+            listbox.insert(tk.END, f" {marker} [{rarity[0]}] {item.item_name}{quantity}")
 
         def item_details(item):
             if item.is_consumable:
-                return "CONSUMABLE", f"{item.attributes}\n\nRestores {item.heal_amount} HP."
+                return "CONSUMABLE", f"{item.attributes}\n\nRestores {item.heal_amount} HP.\nQuantity: {item.quantity}"
             if item.is_armor:
                 equipped = "\n\nCurrently equipped." if item is self.player.equipped_armor else ""
-                return "ARMOR", f"{item.attributes}\n\nDefense +{item.defense_bonus:.1f}{equipped}"
+                current = getattr(getattr(self.player, "equipped_armor", None), "defense_bonus", 0.0)
+                comparison = f"\nCompared to equipped: {item.defense_bonus - current:+.1f} DEF" if item is not self.player.equipped_armor else ""
+                return "ARMOR", f"{item.attributes}\n\nDefense +{item.defense_bonus:.1f}{comparison}{equipped}"
             equipped = "\n\nCurrently equipped." if item is self.player.equipped_weapon else ""
-            return "WEAPON", f"{item.attributes}\n\nDamage +{item.additional_damage:.1f}{equipped}"
+            forge_note = f"\nForge tier {item.forge_label()} / +{item.max_upgrade_level}"
+            current = getattr(getattr(self.player, "equipped_weapon", None), "additional_damage", 0.0)
+            comparison = f"\nCompared to equipped: {item.additional_damage - current:+.1f} DMG" if item is not self.player.equipped_weapon else ""
+            return "WEAPON", f"{item.attributes}\n\nDamage +{item.additional_damage:.1f}{comparison}{forge_note}{equipped}"
 
         def on_select(_event=None):
             selection = listbox.curselection()
@@ -678,8 +927,9 @@ class GamePanel(tk.Frame):
                 return
             item = candidates[selection[0]]
             item_type, description = item_details(item)
+            rarity = getattr(item, "rarity", "Common")
             name_lbl.config(text=item.item_name)
-            type_lbl.config(text=item_type)
+            type_lbl.config(text=f"{rarity.upper()}  •  {item_type}", fg=RARITY_COLORS.get(rarity, self.PURPLE))
             desc_lbl.config(text=description)
             if item.is_consumable:
                 can_use = self.player.hp < self.player.max_hp
@@ -697,7 +947,7 @@ class GamePanel(tk.Frame):
             if item.is_consumable:
                 previous_hp = self.player.hp
                 self.player.hp = min(self.player.max_hp, self.player.hp + item.heal_amount)
-                self.player.inventory.remove(item)
+                self.player.consume_item(item)
                 healed = self.player.hp - previous_hp
                 self.append_text(f"Used {item.item_name} and restored {healed} HP.", "success")
                 self.show_toast(f"RECOVERED {healed} HP", self.GREEN)
@@ -717,6 +967,82 @@ class GamePanel(tk.Frame):
 
     def equip_weapon(self):
         self.show_inventory(equipment_only=True)
+
+    def show_settings(self):
+        window, content = self._modal("SETTINGS & ACCESSIBILITY", "Tune challenge, presentation, audio, and controls.", "860x680")
+        body = tk.Frame(content, bg=self.SURFACE)
+        body.pack(fill=tk.BOTH, expand=True, padx=24, pady=18)
+
+        difficulty = tk.StringVar(value=settings.get("difficulty"))
+        text_speed = tk.StringVar(value=settings.get("text_speed"))
+        display_mode = tk.StringVar(value=settings.get("display_mode"))
+        reduce_animations = tk.BooleanVar(value=settings.get("reduce_animations"))
+        music_volume = tk.DoubleVar(value=settings.get("music_volume") * 100)
+        sfx_volume = tk.DoubleVar(value=settings.get("sfx_volume") * 100)
+
+        general = tk.LabelFrame(body, text=" GAMEPLAY & ACCESSIBILITY ", bg=self.SURFACE_ALT, fg=self.GOLD, font=("Arial", 9, "bold"), bd=1, relief=tk.FLAT)
+        general.pack(fill=tk.X)
+
+        def option_row(row, label, variable, values):
+            tk.Label(general, text=label, bg=self.SURFACE_ALT, fg=self.TEXT, font=("Arial", 9, "bold")).grid(row=row, column=0, sticky="w", padx=14, pady=7)
+            menu = tk.OptionMenu(general, variable, *values)
+            menu.config(bg="#253149", fg="#ffffff", activebackground="#354461", activeforeground="#ffffff", relief=tk.FLAT, width=14, highlightthickness=0)
+            menu["menu"].config(bg="#253149", fg="#ffffff")
+            menu.grid(row=row, column=1, sticky="w", padx=10, pady=5)
+
+        option_row(0, "Difficulty", difficulty, ("Easy", "Normal", "Hard"))
+        option_row(1, "Text speed", text_speed, ("Fast", "Normal", "Slow"))
+        option_row(2, "Display", display_mode, ("Windowed", "Fullscreen"))
+        tk.Checkbutton(general, text="Reduce movement, particles, and transition animations", variable=reduce_animations, bg=self.SURFACE_ALT, fg=self.TEXT, selectcolor="#253149", activebackground=self.SURFACE_ALT, activeforeground="#ffffff", font=("Arial", 9)).grid(row=3, column=0, columnspan=4, sticky="w", padx=12, pady=7)
+        tk.Label(general, text="Music volume", bg=self.SURFACE_ALT, fg=self.TEXT).grid(row=0, column=2, sticky="w", padx=(30, 4))
+        tk.Scale(general, variable=music_volume, from_=0, to=100, orient=tk.HORIZONTAL, bg=self.SURFACE_ALT, fg=self.TEXT, troughcolor="#253149", highlightthickness=0, length=220).grid(row=0, column=3, padx=8)
+        tk.Label(general, text="Sound volume", bg=self.SURFACE_ALT, fg=self.TEXT).grid(row=1, column=2, sticky="w", padx=(30, 4))
+        tk.Scale(general, variable=sfx_volume, from_=0, to=100, orient=tk.HORIZONTAL, bg=self.SURFACE_ALT, fg=self.TEXT, troughcolor="#253149", highlightthickness=0, length=220).grid(row=1, column=3, padx=8)
+
+        controls = tk.LabelFrame(body, text=" REMAPPABLE CONTROLS ", bg=self.SURFACE_ALT, fg=self.BLUE, font=("Arial", 9, "bold"), bd=1, relief=tk.FLAT)
+        controls.pack(fill=tk.BOTH, expand=True, pady=(14, 0))
+        labels = {
+            "walk_forward": "Move forward", "walk_back": "Move back", "walk_left": "Move left", "walk_right": "Move right",
+            "inventory": "Inventory", "equip": "Equipment", "region_map": "Region map", "quest_log": "Quest log", "options": "Options",
+            "battle_attack": "Battle: Attack", "battle_defend": "Battle: Defend", "battle_item": "Battle: Item", "battle_skill": "Battle: Skill", "battle_escape": "Battle: Escape",
+        }
+        key_vars = {}
+        for index, (action, label) in enumerate(labels.items()):
+            column_group, row = divmod(index, 7)
+            base_column = column_group * 2
+            tk.Label(controls, text=label, bg=self.SURFACE_ALT, fg=self.TEXT, font=("Arial", 9)).grid(row=row, column=base_column, sticky="w", padx=(15, 6), pady=6)
+            key_vars[action] = tk.StringVar(value=settings.key(action))
+            tk.Entry(controls, textvariable=key_vars[action], width=12, justify=tk.CENTER, bg="#0b1019", fg="#ffffff", insertbackground="#ffffff", relief=tk.FLAT).grid(row=row, column=base_column + 1, padx=(4, 22), pady=6)
+
+        status = tk.Label(body, text="Arrow keys remain available for movement.", bg=self.SURFACE, fg=self.MUTED, font=("Arial", 8))
+        status.pack(side=tk.LEFT, pady=12)
+
+        def save_changes():
+            clean_keys = {action: value.get().strip() for action, value in key_vars.items()}
+            if any(not value or len(value) > 12 for value in clean_keys.values()):
+                messagebox.showerror("Invalid controls", "Each control needs a key name of 1 to 12 characters.", parent=window)
+                return
+            action_names = list(labels)
+            adventure = [clean_keys[action].lower() for action in action_names[:9]]
+            battle = [clean_keys[action].lower() for action in action_names[9:]]
+            if len(adventure) != len(set(adventure)) or len(battle) != len(set(battle)):
+                messagebox.showerror("Duplicate controls", "Controls on the same screen must use different keys.", parent=window)
+                return
+            settings.save({
+                "difficulty": difficulty.get(), "text_speed": text_speed.get(),
+                "display_mode": display_mode.get(), "reduce_animations": reduce_animations.get(),
+                "music_volume": music_volume.get() / 100.0, "sfx_volume": sfx_volume.get() / 100.0,
+                "keybindings": clean_keys,
+            })
+            audio_manager.configure(settings.get("music_volume"), settings.get("sfx_volume"))
+            apply_display_mode(self.winfo_toplevel(), settings.get("display_mode"))
+            self._bind_shortcuts()
+            self.append_text(f"Settings saved. Difficulty is now {settings.get('difficulty')}.", "success")
+            self.show_toast("SETTINGS SAVED")
+            window.destroy()
+
+        tk.Button(body, text="SAVE SETTINGS", command=save_changes, bg=self.GOLD, fg="#171008", activebackground="#e4b94f", relief=tk.FLAT, font=("Arial", 10, "bold"), padx=24, pady=10).pack(side=tk.RIGHT, pady=10)
+        window.bind("<Escape>", lambda _event: window.destroy())
 
     def show_options(self):
         window, content = self._modal("OPTIONS & GUIDE", "Everything you need to continue the journey.", "900x620")
@@ -746,6 +1072,7 @@ class GamePanel(tk.Frame):
         viewer.tag_configure("note", foreground=self.PURPLE)
 
         skill_guide = [("CLASS SKILLS\n", "title")]
+        skill_guide.append(("All class skills gain +20% power at level 12 (Mastery II) and +40% power at level 15 (Mastery III).\n", "note"))
         for data in CLASS_SKILLS.values():
             skill_guide.append((f"{data['name']}\n", "heading"))
             skill_guide.append((f"{data['identity']}\n", "body"))
@@ -757,13 +1084,21 @@ class GamePanel(tk.Frame):
             "GUIDE": [
                 ("SWORD PHANTASIA GUIDE\n", "title"),
                 ("Exploration\n", "heading"),
-                ("Travel with the directional controls. Every movement has a chance to trigger an encounter. Explore searches the current area with a higher encounter chance.\n", "body"),
+                ("Travel can lead to battles or region-specific events: treasure caches, materials, landmarks, NPC decisions, shrines, traps, and wandering merchants. Explore favors discoveries and battles over quiet results.\n", "body"),
                 ("Resting\n", "heading"),
                 ("Rest restores up to 10 HP and 10 MP. It cannot raise either resource beyond its maximum.\n", "body"),
                 ("Combat\n", "heading"),
-                ("Attack uses your equipped weapon. Defend reduces the next incoming hit. Skills cost 20 MP and deal heavier damage. Items can restore HP during battle.\n", "body"),
+                ("Attack uses your equipped weapon. Defend halves the remaining incoming damage and restores MP. Skills have individual costs and cooldowns, and exploit heavy enemy attacks. Items restore HP during battle.\n", "body"),
+                ("Defeat\n", "heading"),
+                ("Defeat never closes the game. Retry the same encounter, return to camp with a 15% gold penalty, load the last save, or return to the title screen.\n", "body"),
                 ("Progression\n", "heading"),
-                ("Defeating monsters awards EXP and gold. Every 100 EXP increases your level, maximum HP, and fully restores HP. Reach level 10 to unlock the final objective.\n", "body"),
+                ("Defeating monsters awards EXP and gold. Leveling increases maximum HP and fully restores HP. After level 10, EXP requirements rise and ascended enemies begin appearing. Class Mastery improves at levels 12 and 15.\n", "body"),
+                ("Region Champions\n", "heading"),
+                ("Complete each region's main quest to challenge its champion. Defeat all three champions to break the seals protecting Demon King Koji. Each champion grants a unique legendary relic.\n", "body"),
+                ("Regional Loot\n", "heading"),
+                ("Every region has distinct weapons, armor, consumables, and rare drops. Ascended enemies have a higher drop chance.\n", "body"),
+                ("Quest Variety\n", "heading"),
+                ("Quest objectives include combat, gathering materials, discovering landmarks, surviving regional encounters, guarded victories, and persistent story decisions.\n", "body"),
                 ("Saving\n", "heading"),
                 ("The game automatically saves after encounters. Use SAVE GAME from the adventure bar whenever you want to save manually.\n", "body"),
             ],
@@ -778,7 +1113,7 @@ class GamePanel(tk.Frame):
                 ("Merchant\n", "heading"),
                 ("The merchant sells weapons, armor, and healing supplies. Select merchandise to compare its effect and price before buying.\n", "body"),
                 ("Blacksmith\n", "heading"),
-                ("The blacksmith upgrades the currently equipped weapon by 20% for 50 gold. Equip a weapon before visiting.\n", "body"),
+                ("The blacksmith advances weapons through five forge tiers. Each tier adds 15% of base damage, and costs rise with tier, base strength, and rarity. Legacy weapons above +5 keep their damage but cannot be upgraded further.\n", "body"),
             ],
             "CONTROLS": [
                 ("CONTROL REFERENCE\n", "title"),
@@ -943,14 +1278,26 @@ class GamePanel(tk.Frame):
             self.location_name, self.location_description = region.locations[direction]
             self.append_text(f"You travel {direction} and arrive at {self.location_name}.", "travel")
             self.update_stats()
-            if random.randint(0, 99) < 20:
+            roll = random.randint(1, 100)
+            if roll <= 18:
                 self.encounter_monster()
+            elif roll <= 43:
+                self.resolve_exploration_event()
         elif command == "Explore":
             self.append_text(f"You search the surroundings of {self.location_name}.", "travel")
-            if random.randint(0, 99) < 50:
+            roll = random.randint(1, 100)
+            if roll <= 45:
+                self.resolve_exploration_event()
+            elif roll <= 85:
                 self.encounter_monster()
             else:
-                self.append_text("The area is quiet. Nothing answers your search.", "system")
+                quiet_lines = (
+                    "The wind shifts, but nothing answers your search.",
+                    "You find old tracks that disappear before the next ridge.",
+                    "For a rare moment, the road is quiet.",
+                    "Distant bells echo once, then fade.",
+                )
+                self.append_text(random.choice(quiet_lines), "system")
         elif command == "Rest":
             self.rest()
         elif command == "Region Map":
@@ -967,6 +1314,8 @@ class GamePanel(tk.Frame):
             self.equip_weapon()
         elif command == "Options":
             self.show_options()
+        elif command == "Settings":
+            self.show_settings()
         elif command == "Save Game":
             self.player.save_to_file()
             self.save_status_lbl.config(text="SAVED", fg=self.GREEN)
@@ -974,6 +1323,8 @@ class GamePanel(tk.Frame):
             self.show_toast("GAME SAVED")
         elif command == "Challenge Demon King":
             self.challenge_final_boss()
+        elif command == "Challenge Region Champion":
+            self.challenge_region_champion()
         elif command == "Quit":
             self.quit_game()
 
@@ -1028,6 +1379,10 @@ class GamePanel(tk.Frame):
         if self.player.current_region != "throne":
             self.show_toast("TRAVEL TO THE PRIMORDIAL THRONE", self.PURPLE)
             return
+        if not all_minibosses_defeated(self.player):
+            remaining = 3 - len(defeated_miniboss_keys(self.player))
+            self.show_toast(f"DEFEAT {remaining} REGION CHAMPION{'S' if remaining != 1 else ''}", self.GOLD)
+            return
         choice = messagebox.askyesno(
             "The Primordial Throne",
             "Demon King Koji awaits beyond this point.\n\nBegin the final battle?",
@@ -1036,9 +1391,36 @@ class GamePanel(tk.Frame):
         if choice:
             self.fight_final_boss()
 
+    def challenge_region_champion(self):
+        boss = miniboss_for_region(self.player)
+        if not boss:
+            self.show_toast("NO REGION CHAMPION AVAILABLE", self.RED)
+            return
+        choice = messagebox.askyesno(
+            "Region Champion",
+            f"{boss.name} answers your challenge.\n\nChampion battles cannot be escaped. Begin?",
+            parent=self,
+        )
+        if not choice:
+            return
+        self.append_text(f"{boss.name}, champion of this region, emerges!", "special")
+        battle = self._run_battle(monster_spec=boss, is_miniboss=True)
+        if battle is None:
+            return
+        if battle.victory:
+            self.append_text(f"{boss.name} has fallen. Its seal on the Primordial Throne breaks.", "reward")
+            self.player.save_to_file()
+            self.save_status_lbl.config(text="AUTOSAVED", fg=self.GREEN)
+            self.show_toast("REGION CHAMPION DEFEATED", self.GOLD)
+        else:
+            self.append_text(f"You withdraw from {boss.name}.", "warning")
+        self.update_stats()
+
     def fight_final_boss(self):
         self.append_text("The gates of the Primordial Throne open.", "special")
-        battle = BattlePanel(self.winfo_toplevel(), self.player, is_boss=True)
+        battle = self._run_battle(is_boss=True)
+        if battle is None:
+            return
         if not battle.victory:
             self.append_text("You withdraw from the Primordial Throne.", "warning")
             self.update_stats()

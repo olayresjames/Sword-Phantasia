@@ -137,9 +137,91 @@ def demon_king():
     save(image, "demon-king-koji.png")
 
 
+def tideheart_behemoth():
+    image, draw = canvas()
+    # A colossal royal slime with a luminous tidal core and broken crown.
+    polygon(draw, [(5, 53), (8, 37), (16, 23), (27, 15), (39, 16), (51, 26),
+                   (58, 42), (57, 54), (50, 59), (13, 59)], "#176f86")
+    polygon(draw, [(10, 49), (14, 34), (25, 23), (39, 22), (51, 35), (54, 50)], "#269eaa", 1)
+    draw.rectangle((11, 51, 54, 57), fill="#14566d")
+    ellipse(draw, (20, 31, 28, 40), "#d9ffff", 1)
+    ellipse(draw, (39, 31, 47, 40), "#d9ffff", 1)
+    draw.rectangle((23, 34, 26, 39), fill="#14334c")
+    draw.rectangle((41, 34, 44, 39), fill="#14334c")
+    ellipse(draw, (27, 38, 41, 52), "#56297a", 2)
+    ellipse(draw, (30, 41, 38, 49), "#b26cff", 1)
+    draw.line((32, 42, 36, 48), fill="#f0dcff", width=2)
+    polygon(draw, [(21, 20), (23, 9), (29, 16), (34, 6), (39, 16), (47, 10),
+                   (45, 23)], "#d29b36")
+    draw.rectangle((23, 19, 45, 23), fill="#9f6728", outline=INK, width=2)
+    draw.rectangle((13, 31, 18, 38), fill="#66d4d1")
+    draw.rectangle((48, 40, 54, 47), fill="#66d4d1")
+    draw.line((23, 47, 28, 51, 33, 48), fill="#103d55", width=2)
+    save(image, "tideheart-behemoth.png")
+
+
+def thornlord_grak():
+    image, draw = canvas()
+    # An elder goblin champion in living briar armor with a crescent cleaver.
+    polygon(draw, [(13, 21), (4, 11), (18, 16), (21, 28)], "#446a32")
+    polygon(draw, [(49, 21), (60, 10), (46, 16), (43, 29)], "#446a32")
+    ellipse(draw, (16, 14, 48, 43), "#587f39")
+    polygon(draw, [(18, 17), (22, 6), (27, 16), (32, 5), (38, 16), (45, 7),
+                   (46, 23)], "#4f392d")
+    draw.line((21, 14, 17, 5, 13, 2), fill="#87512d", width=3)
+    draw.line((41, 14, 46, 5, 51, 2), fill="#87512d", width=3)
+    polygon(draw, [(20, 25), (28, 21), (29, 29), (21, 30)], "#e6c34f", 1)
+    polygon(draw, [(35, 21), (44, 25), (43, 30), (35, 29)], "#e6c34f", 1)
+    draw.rectangle((25, 25, 28, 28), fill="#5b1f2d")
+    draw.rectangle((36, 25, 39, 28), fill="#5b1f2d")
+    draw.line((24, 36, 31, 39, 41, 34), fill="#331e27", width=2)
+    draw.rectangle((27, 38, 31, 42), fill="#e6d8aa")
+    draw.rectangle((36, 37, 40, 41), fill="#e6d8aa")
+    polygon(draw, [(15, 40), (24, 34), (33, 39), (42, 34), (51, 42), (47, 59),
+                   (17, 59)], "#405a2f")
+    for x, y in ((18, 42), (25, 37), (43, 39), (49, 45), (22, 53)):
+        polygon(draw, [(x, y), (x + 3, y - 5), (x + 5, y + 1)], "#7b9b3b", 1)
+    draw.line((43, 42, 55, 55), fill="#75452c", width=4)
+    polygon(draw, [(48, 35), (57, 27), (61, 29), (58, 42), (52, 48), (46, 45),
+                   (52, 41)], "#b9c0b0", 1)
+    draw.rectangle((19, 56, 30, 62), fill="#352823", outline=INK, width=2)
+    draw.rectangle((39, 56, 50, 62), fill="#352823", outline=INK, width=2)
+    save(image, "thornlord-grak.png")
+
+
+def ashen_bonewyrm():
+    image, draw = canvas()
+    # A coiled skeletal wyrm crowned with crypt fire.
+    for x, y in ((10, 14), (52, 12), (7, 43), (55, 45)):
+        polygon(draw, [(x, y + 8), (x - 3, y + 2), (x, y - 5), (x + 4, y + 1),
+                       (x + 6, y - 6), (x + 7, y + 7)], "#7246a8", 1)
+    draw.arc((9, 27, 55, 62), 15, 315, fill=INK, width=10)
+    draw.arc((9, 27, 55, 62), 15, 315, fill="#c9c0a6", width=6)
+    for x, y in ((17, 50), (24, 56), (35, 56), (44, 49)):
+        draw.line((x, y, x - 3, y + 6), fill="#827968", width=2)
+    polygon(draw, [(19, 12), (25, 6), (38, 7), (47, 15), (44, 29), (35, 36),
+                   (22, 31), (16, 23)], "#d8d0b6")
+    polygon(draw, [(18, 15), (11, 9), (16, 22), (22, 26)], "#aaa18b")
+    polygon(draw, [(44, 15), (52, 9), (47, 24), (42, 27)], "#aaa18b")
+    polygon(draw, [(21, 17), (29, 14), (29, 22), (22, 23)], "#2d2435", 1)
+    polygon(draw, [(34, 14), (42, 18), (40, 24), (33, 22)], "#2d2435", 1)
+    draw.rectangle((24, 18, 28, 21), fill="#bd6cff")
+    draw.rectangle((35, 18, 39, 21), fill="#bd6cff")
+    polygon(draw, [(24, 28), (31, 25), (41, 28), (37, 36), (27, 34)], "#b8ae96", 1)
+    draw.line((27, 30, 39, 30), fill="#5e5660", width=1)
+    for x in (28, 32, 36):
+        draw.line((x, 30, x + 1, 34), fill="#5e5660", width=1)
+    polygon(draw, [(19, 11), (23, 1), (29, 9), (34, 0), (38, 10), (44, 3),
+                   (45, 15)], "#574060", 1)
+    save(image, "ashen-bonewyrm.png")
+
+
 if __name__ == "__main__":
     slime()
     goblin()
     skeleton()
     demon_king()
+    tideheart_behemoth()
+    thornlord_grak()
+    ashen_bonewyrm()
     print(f"Generated monster sprites in {OUT_DIR}")

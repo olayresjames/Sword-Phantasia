@@ -4,8 +4,11 @@ import tkinter as tk
 from tkinter import messagebox, simpledialog
 
 from battle_panel import resource_path
+from audio_manager import audio_manager
 from character import Character
 from game_panel import GamePanel
+from game_settings import apply_display_mode
+from game_settings import settings
 from item import Item
 
 
@@ -30,45 +33,41 @@ class MainMenu:
     def __init__(self, root):
         self.root = root
         self.root.withdraw()
-        self.menu_images = []
+        self.menu_images = {}
         self.display_menu()
 
     def display_menu(self):
         self.menu_win = tk.Toplevel(self.root)
         self.menu_win.title("Sword Phantasia")
-        self.menu_win.geometry("960x600")
+        width, height = self._title_window_size(self.menu_win)
+        self.menu_win.geometry(f"{width}x{height}")
+        minimum_width = min(960, width)
+        self.menu_win.minsize(minimum_width, int(round(minimum_width * 5 / 8)))
+        self.menu_win.maxsize(self.menu_win.winfo_screenwidth(), self.menu_win.winfo_screenheight())
         self.menu_win.resizable(False, False)
+        try:
+            self.menu_win.aspect(8, 5, 8, 5)
+        except tk.TclError:
+            pass
         self.menu_win.configure(bg=self.BG)
         self.menu_win.protocol("WM_DELETE_WINDOW", self.quit_game)
-        self._center_window(self.menu_win, 960, 600)
+        self._center_window(self.menu_win, width, height)
+        self.menu_win.grid_rowconfigure(0, weight=1)
+        # Preserve the original 570:390 artwork/menu split inside the 16:10 window.
+        self.menu_win.grid_columnconfigure(0, weight=19, uniform="title")
+        self.menu_win.grid_columnconfigure(1, weight=13, uniform="title")
 
-        showcase = tk.Canvas(self.menu_win, width=570, height=600, bg="#090e18", highlightthickness=0)
-        showcase.pack(side=tk.LEFT, fill=tk.BOTH)
-        showcase.create_polygon(0, 0, 570, 0, 570, 600, 405, 600, 175, 0, fill="#0e1626", outline="")
-        showcase.create_polygon(0, 600, 0, 300, 300, 600, fill="#111b2c", outline="")
-        showcase.create_line(48, 455, 510, 455, fill="#35415a")
-        showcase.create_line(95, 466, 465, 466, fill="#202b3e")
-        for x, y, size in ((55, 70, 2), (160, 105, 1), (470, 88, 2), (410, 180, 1), (92, 265, 1), (510, 325, 2)):
-            showcase.create_oval(x, y, x + size, y + size, fill="#657596", outline="")
-
-        showcase.create_text(52, 72, text="SWORD", anchor="w", font=("Georgia", 42, "bold"), fill=self.TEXT)
-        showcase.create_text(52, 121, text="PHANTASIA", anchor="w", font=("Georgia", 35, "bold"), fill=self.GOLD)
-        showcase.create_text(55, 164, text="A REALM AT THE EDGE OF DARKNESS", anchor="w", font=("Arial", 9, "bold"), fill=self.PURPLE)
-        showcase.create_text(55, 192, text="Choose your weapon. Shape your legend.\nDefeat the primordial king.", anchor="nw", font=("Arial", 11), fill="#aab5ca")
-
-        positions = {"Sword": (140, 370), "Bow": (285, 350), "Axe": (430, 370)}
-        for weapon, (x, y) in positions.items():
+        self.showcase = tk.Canvas(self.menu_win, bg="#090e18", highlightthickness=0)
+        self.showcase.grid(row=0, column=0, sticky="nsew")
+        for weapon, data in self.WEAPONS.items():
             try:
-                image = tk.PhotoImage(file=resource_path(self.WEAPONS[weapon]["sprite"]))
-                self.menu_images.append(image)
-                showcase.create_oval(x - 66, y + 46, x + 66, y + 70, fill="#141f31", outline="#33425f")
-                showcase.create_image(x, y, image=image)
+                self.menu_images[weapon] = tk.PhotoImage(file=resource_path(data["sprite"]))
             except (tk.TclError, OSError):
-                showcase.create_text(x, y, text=weapon[0], font=("Georgia", 34, "bold"), fill=self.BLUE)
-        showcase.create_text(55, 545, text="THREE PATHS  •  ONE DESTINY", anchor="w", font=("Arial", 9, "bold"), fill="#66738c")
+                self.menu_images[weapon] = None
+        self.showcase.bind("<Configure>", self._draw_title_showcase)
 
-        menu = tk.Frame(self.menu_win, bg=self.SURFACE, width=390, highlightbackground=self.BORDER, highlightthickness=1)
-        menu.pack(side=tk.RIGHT, fill=tk.BOTH)
+        menu = tk.Frame(self.menu_win, bg=self.SURFACE, highlightbackground=self.BORDER, highlightthickness=1)
+        menu.grid(row=0, column=1, sticky="nsew")
         menu.pack_propagate(False)
         tk.Label(menu, text="MAIN MENU", font=("Arial", 9, "bold"), fg=self.MUTED, bg=self.SURFACE).pack(anchor="w", padx=38, pady=(62, 8))
         tk.Label(menu, text="Begin your journey", font=("Georgia", 22, "bold"), fg=self.TEXT, bg=self.SURFACE).pack(anchor="w", padx=38, pady=(0, 25))
@@ -90,6 +89,65 @@ class MainMenu:
         self.menu_win.bind("<KeyPress-c>", lambda _event: self.load_game() if self.continue_btn["state"] != tk.DISABLED else None)
         self.menu_win.bind("<Escape>", lambda _event: self.quit_game())
         self.menu_win.focus_set()
+
+    def _draw_title_showcase(self, event=None):
+        canvas = self.showcase
+        width = max(1, event.width if event else canvas.winfo_width())
+        height = max(1, event.height if event else canvas.winfo_height())
+        scale_x = width / 570.0
+        scale_y = height / 600.0
+        scale = min(scale_x, scale_y)
+
+        def point(x, y):
+            return x * scale_x, y * scale_y
+
+        def points(*coordinates):
+            transformed = []
+            for index in range(0, len(coordinates), 2):
+                transformed.extend(point(coordinates[index], coordinates[index + 1]))
+            return transformed
+
+        def font(family, size, weight=None):
+            scaled = max(7, int(round(size * scale)))
+            return (family, scaled, weight) if weight else (family, scaled)
+
+        canvas.delete("all")
+        canvas.create_polygon(*points(0, 0, 570, 0, 570, 600, 405, 600, 175, 0), fill="#0e1626", outline="")
+        canvas.create_polygon(*points(0, 600, 0, 300, 300, 600), fill="#111b2c", outline="")
+        canvas.create_line(*points(48, 455, 510, 455), fill="#35415a", width=max(1, int(scale)))
+        canvas.create_line(*points(95, 466, 465, 466), fill="#202b3e", width=max(1, int(scale)))
+        for x, y, size in ((55, 70, 2), (160, 105, 1), (470, 88, 2), (410, 180, 1), (92, 265, 1), (510, 325, 2)):
+            x1, y1 = point(x, y)
+            canvas.create_oval(x1, y1, x1 + max(1, size * scale), y1 + max(1, size * scale), fill="#657596", outline="")
+
+        canvas.create_text(*point(52, 72), text="SWORD", anchor="w", font=font("Georgia", 42, "bold"), fill=self.TEXT)
+        canvas.create_text(*point(52, 121), text="PHANTASIA", anchor="w", font=font("Georgia", 35, "bold"), fill=self.GOLD)
+        canvas.create_text(*point(55, 164), text="A REALM AT THE EDGE OF DARKNESS", anchor="w", font=font("Arial", 9, "bold"), fill=self.PURPLE)
+        canvas.create_text(*point(55, 192), text="Choose your weapon. Shape your legend.\nDefeat the primordial king.", anchor="nw", font=font("Arial", 11), fill="#aab5ca")
+
+        positions = {"Sword": (140, 370), "Bow": (285, 350), "Axe": (430, 370)}
+        for weapon, (x, y) in positions.items():
+            x_pos, y_pos = point(x, y)
+            canvas.create_oval(*points(x - 66, y + 46, x + 66, y + 70), fill="#141f31", outline="#33425f", width=max(1, int(scale)))
+            image = self.menu_images.get(weapon)
+            if image:
+                canvas.create_image(x_pos, y_pos, image=image)
+            else:
+                canvas.create_text(x_pos, y_pos, text=weapon[0], font=font("Georgia", 34, "bold"), fill=self.BLUE)
+        canvas.create_text(*point(55, 545), text="THREE PATHS  •  ONE DESTINY", anchor="w", font=font("Arial", 9, "bold"), fill="#66738c")
+
+    @staticmethod
+    def _title_window_size(window):
+        screen_width = max(640, window.winfo_screenwidth())
+        screen_height = max(400, window.winfo_screenheight())
+        available_width = int(screen_width * 0.94)
+        available_height = int(screen_height * 0.88)
+        width = min(1200, available_width)
+        height = int(round(width * 5 / 8))
+        if height > available_height:
+            height = available_height
+            width = int(round(height * 8 / 5))
+        return max(640, width), max(400, height)
 
     def _menu_button(self, parent, text, command, color, hover):
         button = tk.Button(parent, text=text, command=command, bg=color, fg=self.TEXT, activebackground=hover, activeforeground="#ffffff", relief=tk.FLAT, bd=0, font=("Arial", 11, "bold"), cursor="hand2", pady=13, anchor="w", padx=20)
@@ -185,21 +243,19 @@ class MainMenu:
         data = self.WEAPONS[weapon_choice]
         player = Character(player_name, 1, starting_weapon=weapon_choice)
         weapon = Item(weapon_choice, data["attributes"], data["damage"])
-        player.inventory.append(weapon)
+        player.add_item(weapon, auto_salvage=False)
         player.equipped_weapon = weapon
         self.menu_win.destroy()
         self.launch_game_window(player)
 
     def launch_game_window(self, player):
+        audio_manager.configure(settings.get("music_volume"), settings.get("sfx_volume"))
         self.root.deiconify()
         self.root.title("Sword Phantasia")
         self.root.geometry("1200x760")
         self.root.minsize(1024, 700)
         self.root.resizable(True, True)
-        try:
-            self.root.state("zoomed")
-        except tk.TclError:
-            self.root.attributes("-fullscreen", True)
+        apply_display_mode(self.root)
         self.root.protocol("WM_DELETE_WINDOW", self.quit_game)
         game_panel = GamePanel(self.root, player)
         game_panel.pack(fill=tk.BOTH, expand=True)
