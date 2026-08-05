@@ -10,7 +10,7 @@ from game_panel import GamePanel
 from game_settings import apply_display_mode, apply_fullscreen
 from game_settings import settings
 from item import Item
-from ui_dialogs import alert, confirm
+from ui_dialogs import alert, confirm, show_guide
 
 
 class MainMenu:
@@ -117,8 +117,10 @@ class MainMenu:
                 transformed.extend(point(coordinates[index], coordinates[index + 1]))
             return transformed
 
-        def font(family, size, weight=None):
+        def font(family, size, weight=None, maximum=None):
             scaled = max(7, int(round(size * scale)))
+            if maximum is not None:
+                scaled = min(maximum, scaled)
             return (family, scaled, weight) if weight else (family, scaled)
 
         canvas.delete("all")
@@ -130,13 +132,13 @@ class MainMenu:
             canvas.create_image(width / 2, height / 2, image=self._scaled_title_art)
         else:
             canvas.create_rectangle(0, 0, width, height, fill="#0e1626", outline="")
-        canvas.create_rectangle(*points(28, 35, 535, 225), fill="#080b13", outline="#3d4860", width=max(1, int(scale)), stipple="gray50")
+        canvas.create_rectangle(*points(28, 35, 535, 248), fill="#080b13", outline="#3d4860", width=max(1, int(scale)), stipple="gray50")
         canvas.create_rectangle(*points(0, 468, 570, 600), fill="#080b13", outline="", stipple="gray50")
 
-        canvas.create_text(*point(52, 72), text="SWORD", anchor="w", font=font("Georgia", 42, "bold"), fill=self.TEXT)
-        canvas.create_text(*point(52, 121), text="PHANTASIA", anchor="w", font=font("Georgia", 35, "bold"), fill=self.GOLD)
-        canvas.create_text(*point(55, 164), text="A REALM AT THE EDGE OF DARKNESS", anchor="w", font=font("Segoe UI", 9, "bold"), fill=self.PURPLE)
-        canvas.create_text(*point(55, 192), text="Choose your path. Break the three seals.\nFace the king beyond the veil.", anchor="nw", font=font("Segoe UI", 11), fill="#bdc8dc")
+        canvas.create_text(*point(52, 72), text="SWORD", anchor="w", font=font("Georgia", 40, "bold", 54), fill=self.TEXT)
+        canvas.create_text(*point(52, 122), text="PHANTASIA", anchor="w", font=font("Georgia", 33, "bold", 45), fill=self.GOLD)
+        canvas.create_text(*point(55, 166), text="A REALM AT THE EDGE OF DARKNESS", anchor="w", font=font("Segoe UI", 9, "bold", 13), fill=self.PURPLE)
+        canvas.create_text(*point(55, 196), text="Choose your path. Break the three seals. Face the king beyond the veil.", anchor="nw", width=max(240, int(420 * scale_x)), font=font("Segoe UI", 10, maximum=16), fill="#bdc8dc")
 
         positions = {"Sword": (125, 525), "Bow": (285, 525), "Axe": (445, 525)}
         image_zoom = max(1, int(round(scale)))
@@ -196,16 +198,7 @@ class MainMenu:
         self.continue_btn.config(state=tk.NORMAL, text="CONTINUE", bg=self.continue_btn.base_color, fg=self.TEXT)
 
     def display_help(self):
-        alert(
-            self.menu_win,
-            "Guide & Controls",
-            "ADVENTURE\n"
-            "WASD / Arrow Keys — Move\nI — Inventory\nE — Equipment\nEscape — Options & full guide\n\n"
-            "BATTLE\n"
-            "A — Attack    D — Defend    I — Item\nS — Skill    R — Escape\n\n"
-            "Defeat monsters to earn EXP and gold. Reach level 10 to challenge Demon King Koji.",
-            accent=self.PURPLE,
-        )
+        show_guide(self.menu_win)
 
     def load_game(self):
         player = Character.load_from_file()

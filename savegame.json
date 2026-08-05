@@ -1,12 +1,12 @@
 {
   "save_version": 5,
   "name": "James",
-  "level": 20,
-  "max_hp": 480,
-  "hp": 337,
-  "mana": 100,
-  "experience": 176,
-  "coins": 300,
+  "level": 21,
+  "max_hp": 500,
+  "hp": 500,
+  "mana": 45,
+  "experience": 126,
+  "coins": 625,
   "inventory": [
     {
       "item_name": "Axe",

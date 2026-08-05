@@ -3,10 +3,10 @@
   "name": "James",
   "level": 20,
   "max_hp": 480,
-  "hp": 480,
-  "mana": 100,
-  "experience": 59,
-  "coins": 240,
+  "hp": 169,
+  "mana": 45,
+  "experience": 326,
+  "coins": 500,
   "inventory": [
     {
       "item_name": "Axe",
@@ -240,6 +240,19 @@
       "rarity": "Common",
       "upgrade_level": 0,
       "base_damage": 27.0,
+      "quantity": 1
+    },
+    {
+      "item_name": "Obsidian Talon",
+      "attributes": "Abyssal",
+      "additional_damage": 38.0,
+      "is_consumable": false,
+      "heal_amount": 0,
+      "is_armor": false,
+      "defense_bonus": 0.0,
+      "rarity": "Uncommon",
+      "upgrade_level": 0,
+      "base_damage": 38.0,
       "quantity": 1
     }
   ],

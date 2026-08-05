@@ -1165,28 +1165,36 @@ class GamePanel(tk.Frame):
         window, content = self._modal("OPTIONS & GUIDE", "Everything you need to continue the journey.", "900x620")
         window.bind("<Escape>", lambda _event: window.destroy())
 
-        tabs = tk.Frame(content, bg=self.SURFACE_ALT, height=54)
-        tabs.pack(fill=tk.X, padx=18, pady=(18, 0))
+        workspace = tk.Frame(content, bg=self.SURFACE)
+        workspace.pack(fill=tk.BOTH, expand=True, padx=34, pady=24)
+        tabs = tk.Frame(workspace, bg=self.SURFACE_ALT, width=220, highlightbackground=self.BORDER, highlightthickness=1)
+        tabs.pack(side=tk.LEFT, fill=tk.Y)
         tabs.pack_propagate(False)
+        tk.Label(tabs, text="REFERENCE", font=("Segoe UI", 9, "bold"), fg="#71809a", bg=self.SURFACE_ALT).pack(anchor="w", padx=20, pady=(22, 10))
+        reader_panel = tk.Frame(workspace, bg="#0b1019", highlightbackground=self.BORDER, highlightthickness=1)
+        reader_panel.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=(16, 0))
         viewer = tk.Text(
-            content,
+            reader_panel,
             state=tk.DISABLED,
             wrap=tk.WORD,
             bg="#0b1019",
             fg="#dce3f2",
-            font=("Arial", 10),
+            font=("Segoe UI", 12),
             relief=tk.FLAT,
-            padx=24,
-            pady=20,
-            spacing1=4,
-            spacing3=8,
+            padx=38,
+            pady=30,
+            spacing1=3,
+            spacing3=10,
         )
-        viewer.pack(fill=tk.BOTH, expand=True, padx=18, pady=(10, 18))
-        viewer.tag_configure("title", font=("Georgia", 18, "bold"), foreground=self.GOLD, spacing3=12)
-        viewer.tag_configure("heading", font=("Arial", 11, "bold"), foreground=self.BLUE, spacing1=10, spacing3=4)
-        viewer.tag_configure("key", font=("Consolas", 10, "bold"), foreground=self.GREEN)
-        viewer.tag_configure("body", foreground="#c8d0e1")
-        viewer.tag_configure("note", foreground=self.PURPLE)
+        viewer_scroll = tk.Scrollbar(reader_panel, command=viewer.yview, bg=self.SURFACE_ALT, troughcolor="#0b1019", relief=tk.FLAT)
+        viewer.configure(yscrollcommand=viewer_scroll.set)
+        viewer_scroll.pack(side=tk.RIGHT, fill=tk.Y)
+        viewer.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        viewer.tag_configure("title", font=("Georgia", 27, "bold"), foreground=self.GOLD, spacing3=18)
+        viewer.tag_configure("heading", font=("Segoe UI", 14, "bold"), foreground=self.BLUE, spacing1=14, spacing3=6)
+        viewer.tag_configure("key", font=("Consolas", 12, "bold"), foreground=self.GREEN, lmargin1=12, lmargin2=12)
+        viewer.tag_configure("body", font=("Segoe UI", 12), foreground="#c8d0e1", lmargin1=12, lmargin2=12)
+        viewer.tag_configure("note", font=("Segoe UI", 11, "italic"), foreground=self.PURPLE, lmargin1=12, lmargin2=12)
 
         skill_guide = [("CLASS SKILLS\n", "title")]
         skill_guide.append(("All class skills gain +20% power at level 12 (Mastery II) and +40% power at level 15 (Mastery III).\n", "note"))
@@ -1287,7 +1295,7 @@ class GamePanel(tk.Frame):
             ],
         }
 
-        save_area = tk.Frame(content, bg="#171e2d", highlightbackground=self.BORDER, highlightthickness=1)
+        save_area = tk.Frame(reader_panel, bg="#171e2d", highlightbackground=self.BORDER, highlightthickness=1)
         save_summary = tk.Label(
             save_area,
             text=f"{self.player.name}  •  LEVEL {self.player.level}  •  {self.location_name}\nHP {self.player.hp}/{self.player.max_hp}    MP {self.player.mana}/100    GOLD {self.player.coins}",
@@ -1325,17 +1333,17 @@ class GamePanel(tk.Frame):
             for tab_name, button in tab_buttons.items():
                 selected = tab_name == name
                 button.config(bg="#30415e" if selected else self.SURFACE_ALT, fg="#ffffff" if selected else self.MUTED)
+            viewer.yview_moveto(0)
             if name == "SAVE GAME":
-                save_area.pack(side=tk.BOTTOM, fill=tk.X, padx=18, pady=(0, 18), before=viewer)
+                save_area.pack(side=tk.BOTTOM, fill=tk.X, before=viewer)
             else:
                 save_area.pack_forget()
 
-        for column, name in enumerate(pages):
-            button = tk.Button(tabs, text=name, command=lambda page=name: show_page(page), bg=self.SURFACE_ALT, fg=self.MUTED, activebackground="#30415e", activeforeground="#ffffff", relief=tk.FLAT, bd=0, font=("Arial", 8, "bold"), cursor="hand2", padx=4)
-            button.grid(row=0, column=column, sticky="nsew", padx=1)
-            tabs.grid_columnconfigure(column, weight=1, uniform="options_tab")
-            tabs.grid_rowconfigure(0, weight=1)
+        for name in pages:
+            button = tk.Button(tabs, text=name, command=lambda page=name: show_page(page), bg=self.SURFACE_ALT, fg=self.MUTED, activebackground="#30415e", activeforeground="#ffffff", relief=tk.FLAT, bd=0, anchor="w", font=("Segoe UI", 10, "bold"), cursor="hand2", padx=20, pady=12)
+            button.pack(fill=tk.X, padx=10, pady=2)
             tab_buttons[name] = button
+        tk.Label(tabs, text="ESC  CLOSE OPTIONS", font=("Consolas", 9, "bold"), fg="#63718a", bg=self.SURFACE_ALT).pack(side=tk.BOTTOM, anchor="w", padx=20, pady=20)
         show_page("GUIDE")
 
     def _modal(self, title, subtitle, geometry):

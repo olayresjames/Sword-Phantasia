@@ -28,6 +28,8 @@ class EndCreditsScreen(tk.Toplevel):
         self.result = "quit"
         self._scroll_job = None
         self._finished = False
+        self._credits_started = False
+        self.final_actions = None
         self.title("Sword Phantasia — End Credits")
         self.configure(bg=self.BG)
         self.transient(parent)
@@ -42,6 +44,7 @@ class EndCreditsScreen(tk.Toplevel):
         self.height = max(620, self.canvas.winfo_height())
         self._draw_backdrop()
         self._create_credits()
+        self.canvas.bind("<Configure>", self._on_resize)
 
         self.skip_btn = tk.Button(
             self,
@@ -67,12 +70,32 @@ class EndCreditsScreen(tk.Toplevel):
 
     def _draw_backdrop(self):
         canvas = self.canvas
+        canvas.delete("backdrop")
         canvas.create_polygon(0, 0, self.width, 0, self.width, self.height, int(self.width * .72), self.height, int(self.width * .42), 0, fill="#080d18", outline="", tags="backdrop")
         canvas.create_polygon(0, self.height, 0, int(self.height * .4), int(self.width * .35), self.height, fill="#0b1220", outline="", tags="backdrop")
         stars = ((.08, .12, 2), (.18, .31, 1), (.30, .17, 2), (.72, .13, 1), (.88, .28, 2), (.93, .61, 1), (.12, .72, 1), (.67, .76, 2), (.81, .88, 1))
         for x_ratio, y_ratio, size in stars:
             x, y = int(self.width * x_ratio), int(self.height * y_ratio)
             canvas.create_oval(x, y, x + size, y + size, fill="#65769a", outline="", tags="backdrop")
+        canvas.tag_lower("backdrop")
+
+    def _on_resize(self, event):
+        new_width = max(1, event.width)
+        new_height = max(1, event.height)
+        if new_width == self.width and new_height == self.height:
+            return
+        old_height = self.height
+        self.width, self.height = new_width, new_height
+        self._draw_backdrop()
+        if self._finished:
+            self._render_finale()
+            return
+        if not self._credits_started:
+            self.canvas.move("credits", 0, new_height - old_height)
+        for item in self.canvas.find_withtag("credits"):
+            coordinates = self.canvas.coords(item)
+            if coordinates:
+                self.canvas.coords(item, self.width // 2, coordinates[1])
 
     def _create_credits(self):
         entries = [
@@ -117,6 +140,7 @@ class EndCreditsScreen(tk.Toplevel):
     def _scroll_credits(self):
         if self._finished or not self.winfo_exists():
             return
+        self._credits_started = True
         self.canvas.move("credits", 0, -2)
         bounds = self.canvas.bbox("credits")
         if not bounds or bounds[3] < 80:
@@ -135,15 +159,19 @@ class EndCreditsScreen(tk.Toplevel):
                 pass
         self.canvas.delete("credits")
         self.skip_btn.place_forget()
-        self.canvas.create_text(self.width // 2, int(self.height * .28), text="SWORD PHANTASIA", font=("Georgia", 38, "bold"), fill=self.GOLD)
-        self.canvas.create_text(self.width // 2, int(self.height * .39), text="A GAME BY", font=("Arial", 10, "bold"), fill=self.MUTED)
-        self.canvas.create_text(self.width // 2, int(self.height * .47), text="JAMES OLAYRES", font=("Georgia", 29, "bold"), fill=self.TEXT)
-        self.canvas.create_text(self.width // 2, int(self.height * .58), text="Thank you for playing.", font=("Arial", 13), fill="#aab5ca")
+        self._render_finale()
 
-        actions = tk.Frame(self, bg=self.BG)
-        actions.place(relx=.5, rely=.74, anchor="center")
-        self._button(actions, "RETURN TO TITLE", lambda: self._choose("title"), "#b1832e", "#d6a943").pack(side=tk.LEFT, padx=7)
-        self._button(actions, "QUIT GAME", lambda: self._choose("quit"), "#3a2430", "#663542").pack(side=tk.LEFT, padx=7)
+    def _render_finale(self):
+        self.canvas.delete("finale")
+        self.canvas.create_text(self.width // 2, int(self.height * .28), text="SWORD PHANTASIA", font=("Georgia", 38, "bold"), fill=self.GOLD, tags="finale")
+        self.canvas.create_text(self.width // 2, int(self.height * .39), text="A GAME BY", font=("Arial", 10, "bold"), fill=self.MUTED, tags="finale")
+        self.canvas.create_text(self.width // 2, int(self.height * .47), text="JAMES OLAYRES", font=("Georgia", 29, "bold"), fill=self.TEXT, tags="finale")
+        self.canvas.create_text(self.width // 2, int(self.height * .58), text="Thank you for playing.", font=("Arial", 13), fill="#aab5ca", tags="finale")
+        if self.final_actions is None or not self.final_actions.winfo_exists():
+            self.final_actions = tk.Frame(self, bg=self.BG)
+            self._button(self.final_actions, "RETURN TO TITLE", lambda: self._choose("title"), "#b1832e", "#d6a943").pack(side=tk.LEFT, padx=7)
+            self._button(self.final_actions, "QUIT GAME", lambda: self._choose("quit"), "#3a2430", "#663542").pack(side=tk.LEFT, padx=7)
+        self.final_actions.place(relx=.5, rely=.74, anchor="center")
 
     def _button(self, parent, text, command, color, hover):
         button = tk.Button(parent, text=text, command=command, bg=color, fg="#ffffff", activebackground=hover, activeforeground="#ffffff", relief=tk.FLAT, bd=0, font=("Arial", 10, "bold"), cursor="hand2", padx=24, pady=12)

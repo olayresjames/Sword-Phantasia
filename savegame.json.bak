@@ -3,10 +3,10 @@
   "name": "James",
   "level": 20,
   "max_hp": 480,
-  "hp": 337,
-  "mana": 100,
-  "experience": 176,
-  "coins": 300,
+  "hp": 240,
+  "mana": 45,
+  "experience": 326,
+  "coins": 425,
   "inventory": [
     {
       "item_name": "Axe",
