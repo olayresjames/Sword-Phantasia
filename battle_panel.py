@@ -100,21 +100,18 @@ class VictoryScreen(tk.Toplevel):
         self._animation_jobs = []
         self._particles = []
         self.title("Victory!")
-        self.geometry("900x620")
-        self.minsize(760, 540)
         self.resizable(False, False)
         self.configure(bg="#080b13")
         self.transient(parent)
         self.grab_set()
         self.protocol("WM_DELETE_WINDOW", self.destroy)
+        apply_display_mode(self)
 
-        self.update_idletasks()
-        x = parent.winfo_rootx() + max(0, (parent.winfo_width() - 900) // 2)
-        y = parent.winfo_rooty() + max(0, (parent.winfo_height() - 620) // 2)
-        self.geometry(f"900x620+{x}+{y}")
-
-        banner = tk.Canvas(self, height=205, bg="#0c1120", highlightthickness=0)
-        banner.pack(fill=tk.X)
+        banner_host = tk.Canvas(self, height=205, bg="#0c1120", highlightthickness=0)
+        banner_host.pack(fill=tk.X)
+        banner = tk.Canvas(banner_host, width=900, height=205, bg="#0c1120", highlightthickness=0)
+        banner_window = banner_host.create_window(450, 0, window=banner, anchor="n")
+        banner_host.bind("<Configure>", lambda event: banner_host.coords(banner_window, event.width / 2, 0))
         self.banner = banner
         banner.create_rectangle(0, 0, 900, 205, fill="#0c1120", outline="")
         banner.create_polygon(0, 205, 320, 0, 430, 0, 165, 205, fill="#111a2c", outline="")
@@ -294,12 +291,12 @@ class DefeatScreen(tk.Toplevel):
         super().__init__(parent)
         self.result = "camp"
         self.title("Defeated")
-        self.geometry("620x500")
         self.resizable(False, False)
         self.configure(bg="#080b13")
         self.transient(parent)
         self.grab_set()
         self.protocol("WM_DELETE_WINDOW", lambda: self._choose("camp"))
+        apply_display_mode(self)
 
         header = tk.Frame(self, bg="#241119", height=120, highlightbackground="#6d2938", highlightthickness=1)
         header.pack(fill=tk.X)
@@ -307,8 +304,11 @@ class DefeatScreen(tk.Toplevel):
         tk.Label(header, text="FALLEN — NOT FORGOTTEN", font=("Georgia", 26, "bold"), fg="#ff7180", bg="#241119").pack(pady=(25, 5))
         tk.Label(header, text=f"{monster_name.upper()} ENDED THIS ATTEMPT", font=("Arial", 9, "bold"), fg="#c99aa3", bg="#241119").pack()
 
-        body = tk.Frame(self, bg="#080b13")
-        body.pack(fill=tk.BOTH, expand=True, padx=34, pady=24)
+        body_host = tk.Frame(self, bg="#080b13")
+        body_host.pack(fill=tk.BOTH, expand=True)
+        body = tk.Frame(body_host, bg="#080b13", width=760, height=500)
+        body.place(relx=.5, rely=.5, anchor="center")
+        body.pack_propagate(False)
         tk.Label(body, text="Choose how the journey continues.", font=("Arial", 11), fg="#c8d0e1", bg="#080b13").pack(pady=(0, 16))
 
         options = (
@@ -840,11 +840,11 @@ class BattlePanel(tk.Toplevel):
             return
         skill_window = tk.Toplevel(self)
         skill_window.title(f"{class_name(self.player)} Skills")
-        skill_window.geometry("680x500")
         skill_window.resizable(False, False)
         skill_window.configure(bg="#080b13")
         skill_window.transient(self)
         skill_window.grab_set()
+        apply_display_mode(skill_window)
 
         header = tk.Frame(skill_window, bg="#111724", height=76, highlightbackground="#343e56", highlightthickness=1)
         header.pack(fill=tk.X)
@@ -853,6 +853,7 @@ class BattlePanel(tk.Toplevel):
         copy.pack(side=tk.LEFT, padx=24, pady=12)
         tk.Label(copy, text=f"{class_name(self.player).upper()} SKILL DECK", font=("Georgia", 18, "bold"), fg="#f3f5ff", bg="#111724").pack(anchor="w")
         tk.Label(copy, text=f"LEVEL {self.player.level}  •  MASTERY {mastery_rank(self.player)}  •  {self.player.mana} MP AVAILABLE", font=("Arial", 9, "bold"), fg="#b994ff", bg="#111724").pack(anchor="w")
+        tk.Button(header, text="×", command=skill_window.destroy, bg="#111724", fg="#8e9ab5", activebackground="#54232c", activeforeground="#ffffff", relief=tk.FLAT, bd=0, font=("Segoe UI", 20), cursor="hand2", padx=18).pack(side=tk.RIGHT, padx=16, pady=8)
 
         body = tk.Frame(skill_window, bg="#080b13")
         body.pack(fill=tk.BOTH, expand=True, padx=16, pady=16)
@@ -980,15 +981,16 @@ class BattlePanel(tk.Toplevel):
             
         item_win = tk.Toplevel(self)
         item_win.title("Use Item")
-        item_win.geometry("520x390")
         item_win.configure(bg="#080b13")
         item_win.grab_set()
+        apply_display_mode(item_win)
 
         header = tk.Frame(item_win, bg="#111724", height=82, highlightbackground="#343e56", highlightthickness=1)
         header.pack(fill=tk.X)
         header.pack_propagate(False)
         tk.Label(header, text="FIELD SUPPLIES", font=("Georgia", 19, "bold"), fg="#f3f5ff", bg="#111724").pack(anchor="w", padx=22, pady=(15, 0))
         tk.Label(header, text="Choose a restorative from your pack", font=("Segoe UI", 9, "bold"), fg="#67dca5", bg="#111724").pack(anchor="w", padx=22)
+        tk.Button(header, text="×", command=item_win.destroy, bg="#111724", fg="#8e9ab5", activebackground="#54232c", activeforeground="#ffffff", relief=tk.FLAT, bd=0, font=("Segoe UI", 20), cursor="hand2", padx=18).place(relx=.985, rely=.5, anchor="e")
         body = tk.Frame(item_win, bg="#080b13")
         body.pack(fill=tk.BOTH, expand=True, padx=18, pady=18)
         listbox = tk.Listbox(body, bg="#0d121c", fg="#e4e8f3", font=("Consolas", 11), selectbackground="#2d6c56", selectforeground="#ffffff", relief=tk.FLAT, activestyle="none")
@@ -1017,6 +1019,7 @@ class BattlePanel(tk.Toplevel):
         use_btn.bind("<Leave>", lambda e: e.widget.config(bg="#2f765d"))
         use_btn.pack(pady=(0, 18), padx=18, fill=tk.X)
         listbox.bind("<Double-Button-1>", lambda _event: on_use())
+        item_win.bind("<Escape>", lambda _event: item_win.destroy())
 
     def monster_turn(self, defending=False):
         if not self.winfo_exists():

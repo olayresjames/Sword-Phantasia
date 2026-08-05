@@ -2,6 +2,7 @@
 
 import json
 import os
+import tkinter as tk
 
 from game_data import DIFFICULTY_PROFILES, TEXT_SPEED_MULTIPLIERS
 
@@ -55,7 +56,7 @@ def validate_settings(data):
         "text_speed": source.get("text_speed") if source.get("text_speed") in TEXT_SPEED_MULTIPLIERS else "Normal",
         "music_volume": _volume(source.get("music_volume"), DEFAULT_SETTINGS["music_volume"]),
         "sfx_volume": _volume(source.get("sfx_volume"), DEFAULT_SETTINGS["sfx_volume"]),
-        "display_mode": source.get("display_mode") if source.get("display_mode") in ("Windowed", "Fullscreen") else "Fullscreen",
+        "display_mode": "Fullscreen",
         "reduce_animations": bool(source.get("reduce_animations", False)),
         "keybindings": clean_keys,
     }
@@ -102,23 +103,25 @@ def key_sequence(key):
     return f"<KeyPress-{key}>"
 
 
-def apply_display_mode(window, mode=None):
-    mode = mode or settings.get("display_mode")
+def apply_fullscreen(window):
+    """Use one borderless fullscreen presentation across every game surface."""
     try:
-        window.attributes("-fullscreen", False)
-    except Exception:
+        window.attributes("-fullscreen", True)
+        return
+    except (tk.TclError, AttributeError, NameError):
         pass
-    if mode == "Windowed":
-        try:
-            window.state("normal")
-        except Exception:
-            pass
-        window.geometry("1200x760")
-    else:
-        try:
-            window.state("zoomed")
-        except Exception:
-            window.attributes("-fullscreen", True)
+    try:
+        window.state("zoomed")
+    except Exception:
+        width = window.winfo_screenwidth()
+        height = window.winfo_screenheight()
+        window.geometry(f"{width}x{height}+0+0")
+
+
+def apply_display_mode(window, mode=None):
+    # Kept as the public entry point for existing callers. Sword Phantasia now
+    # deliberately uses a seamless fullscreen presentation on every screen.
+    apply_fullscreen(window)
 
 
 settings = SettingsManager()

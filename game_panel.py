@@ -1060,7 +1060,7 @@ class GamePanel(tk.Frame):
 
         difficulty = tk.StringVar(value=settings.get("difficulty"))
         text_speed = tk.StringVar(value=settings.get("text_speed"))
-        display_mode = tk.StringVar(value=settings.get("display_mode"))
+        display_mode = tk.StringVar(value="Fullscreen")
         reduce_animations = tk.BooleanVar(value=settings.get("reduce_animations"))
         music_volume = tk.DoubleVar(value=settings.get("music_volume") * 100)
         sfx_volume = tk.DoubleVar(value=settings.get("sfx_volume") * 100)
@@ -1095,7 +1095,7 @@ class GamePanel(tk.Frame):
 
         option_row(0, "Difficulty", difficulty, ("Easy", "Normal", "Hard"))
         option_row(1, "Text speed", text_speed, ("Fast", "Normal", "Slow"))
-        option_row(2, "Display", display_mode, ("Windowed", "Fullscreen"))
+        option_row(2, "Display", display_mode, ("Fullscreen",))
         tk.Checkbutton(general, text="Reduce movement, particles, and transition animations", variable=reduce_animations, bg=self.SURFACE_ALT, fg=self.TEXT, selectcolor="#253149", activebackground=self.SURFACE_ALT, activeforeground="#ffffff", font=("Arial", 9)).grid(row=3, column=0, columnspan=4, sticky="w", padx=12, pady=7)
 
         audio = tk.LabelFrame(top_settings, text=" AUDIO VOLUME ", bg="#171426", fg=self.PURPLE, font=("Arial", 10, "bold"), bd=1, relief=tk.FLAT, width=420, height=150)
@@ -1341,17 +1341,11 @@ class GamePanel(tk.Frame):
     def _modal(self, title, subtitle, geometry):
         window = tk.Toplevel(self)
         window.title(title.title())
-        window.geometry(geometry)
         window.configure(bg=self.BG)
         window.transient(self.winfo_toplevel())
         window.grab_set()
         window.resizable(False, False)
-        window.update_idletasks()
-        width, height = (int(value) for value in geometry.split("x", 1))
-        parent = self.winfo_toplevel()
-        x = parent.winfo_rootx() + max(0, (parent.winfo_width() - width) // 2)
-        y = parent.winfo_rooty() + max(0, (parent.winfo_height() - height) // 2)
-        window.geometry(f"{geometry}+{x}+{y}")
+        apply_display_mode(window)
         header = tk.Frame(window, bg="#0d131e", height=78, highlightbackground=self.BORDER, highlightthickness=1)
         header.pack(fill=tk.X)
         header.pack_propagate(False)

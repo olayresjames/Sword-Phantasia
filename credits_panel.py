@@ -2,6 +2,8 @@ import os
 import sys
 import tkinter as tk
 
+from game_settings import apply_fullscreen
+
 
 def resource_path(relative_path):
     try:
@@ -27,15 +29,10 @@ class EndCreditsScreen(tk.Toplevel):
         self._scroll_job = None
         self._finished = False
         self.title("Sword Phantasia — End Credits")
-        self.geometry("1100x720")
-        self.minsize(900, 620)
         self.configure(bg=self.BG)
         self.transient(parent)
         self.grab_set()
-        try:
-            self.state("zoomed")
-        except tk.TclError:
-            self.attributes("-fullscreen", True)
+        apply_fullscreen(self)
         self.protocol("WM_DELETE_WINDOW", lambda: self._choose("quit"))
 
         self.canvas = tk.Canvas(self, bg=self.BG, highlightthickness=0)

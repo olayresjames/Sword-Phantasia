@@ -1,12 +1,12 @@
 {
   "save_version": 5,
   "name": "James",
-  "level": 19,
-  "max_hp": 460,
-  "hp": 427,
-  "mana": 78,
-  "experience": 77,
-  "coins": 730,
+  "level": 20,
+  "max_hp": 480,
+  "hp": 337,
+  "mana": 100,
+  "experience": 176,
+  "coins": 300,
   "inventory": [
     {
       "item_name": "Axe",
@@ -89,13 +89,13 @@
     {
       "item_name": "Excalibur",
       "attributes": "Legendary",
-      "additional_damage": 65.0,
+      "additional_damage": 80.0,
       "is_consumable": false,
       "heal_amount": 0,
       "is_armor": false,
       "defense_bonus": 0.0,
       "rarity": "Legendary",
-      "upgrade_level": 2,
+      "upgrade_level": 4,
       "base_damage": 50.0,
       "quantity": 1
     },
@@ -202,10 +202,62 @@
       "upgrade_level": 0,
       "base_damage": 0.0,
       "quantity": 1
+    },
+    {
+      "item_name": "Graveplate",
+      "attributes": "Runed",
+      "additional_damage": 0.0,
+      "is_consumable": false,
+      "heal_amount": 0,
+      "is_armor": true,
+      "defense_bonus": 15.0,
+      "rarity": "Uncommon",
+      "upgrade_level": 0,
+      "base_damage": 0.0,
+      "quantity": 1
+    },
+    {
+      "item_name": "Ashen Elixir",
+      "attributes": "Restorative",
+      "additional_damage": 0.0,
+      "is_consumable": true,
+      "heal_amount": 75,
+      "is_armor": false,
+      "defense_bonus": 0.0,
+      "rarity": "Common",
+      "upgrade_level": 0,
+      "base_damage": 0.0,
+      "quantity": 2
+    },
+    {
+      "item_name": "Ossuary Blade",
+      "attributes": "Grave-Touched",
+      "additional_damage": 27.0,
+      "is_consumable": false,
+      "heal_amount": 0,
+      "is_armor": false,
+      "defense_bonus": 0.0,
+      "rarity": "Common",
+      "upgrade_level": 0,
+      "base_damage": 27.0,
+      "quantity": 1
+    },
+    {
+      "item_name": "Obsidian Talon",
+      "attributes": "Abyssal",
+      "additional_damage": 38.0,
+      "is_consumable": false,
+      "heal_amount": 0,
+      "is_armor": false,
+      "defense_bonus": 0.0,
+      "rarity": "Uncommon",
+      "upgrade_level": 0,
+      "base_damage": 38.0,
+      "quantity": 1
     }
   ],
   "starting_weapon": "Axe",
-  "current_region": "crypt",
+  "current_region": "throne",
   "quest_progress": {
     "slime_tide": 3,
     "goblin_warband": 4,
@@ -213,14 +265,16 @@
     "primordial_night": 1,
     "trial_of_ashes": 3,
     "gel_research": 1,
-    "embers_of_tomorrow": 1
+    "embers_of_tomorrow": 1,
+    "vault_cartography": 1
   },
   "completed_quests": [
     "slime_tide",
     "goblin_warband",
     "restless_dead",
     "primordial_night",
-    "trial_of_ashes"
+    "trial_of_ashes",
+    "vault_cartography"
   ],
   "defeated_minibosses": [
     "bonewyrm",
@@ -230,25 +284,27 @@
   "materials": {
     "metal_scrap": 7,
     "prismatic_gel": 1,
-    "warden_ash": 2,
+    "warden_ash": 3,
     "void_ember": 1
   },
-  "discovered_landmarks": [],
+  "discovered_landmarks": [
+    "warden_vault"
+  ],
   "story_choices": [
     "aid_pilgrim:aid",
     "free_spirit:aid"
   ],
   "equipped_weapon": {
-    "item_name": "Excalibur",
-    "attributes": "Legendary",
-    "additional_damage": 65.0,
+    "item_name": "Warden Charm",
+    "attributes": "Ancient",
+    "additional_damage": 18.0,
     "is_consumable": false,
     "heal_amount": 0,
     "is_armor": false,
     "defense_bonus": 0.0,
-    "rarity": "Legendary",
-    "upgrade_level": 2,
-    "base_damage": 50.0,
+    "rarity": "Rare",
+    "upgrade_level": 0,
+    "base_damage": 18.0,
     "quantity": 1
   },
   "equipped_armor": {

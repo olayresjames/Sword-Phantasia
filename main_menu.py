@@ -1,12 +1,13 @@
 import os
 import sys
+import math
 import tkinter as tk
 
 from battle_panel import resource_path
 from audio_manager import audio_manager
 from character import Character
 from game_panel import GamePanel
-from game_settings import apply_display_mode
+from game_settings import apply_display_mode, apply_fullscreen
 from game_settings import settings
 from item import Item
 from ui_dialogs import alert, confirm
@@ -39,16 +40,17 @@ class MainMenu:
     def display_menu(self):
         self.menu_win = tk.Toplevel(self.root)
         self.menu_win.title("Sword Phantasia")
-        width, height = self._title_window_size(self.menu_win)
-        self.menu_win.geometry(f"{width}x{height}")
-        minimum_width = min(960, width)
-        self.menu_win.minsize(minimum_width, int(round(minimum_width * 5 / 8)))
-        self.menu_win.maxsize(self.menu_win.winfo_screenwidth(), self.menu_win.winfo_screenheight())
+        width = self.menu_win.winfo_screenwidth()
+        height = self.menu_win.winfo_screenheight()
+        self.menu_win.geometry(f"{width}x{height}+0+0")
         self.menu_win.resizable(False, False)
         try:
-            self.menu_win.aspect(8, 5, 8, 5)
+            self.menu_win.attributes("-fullscreen", True)
         except tk.TclError:
-            pass
+            try:
+                self.menu_win.state("zoomed")
+            except tk.TclError:
+                pass
         self.menu_win.configure(bg=self.BG)
         self.menu_win.protocol("WM_DELETE_WINDOW", self.quit_game)
         self._center_window(self.menu_win, width, height)
@@ -59,6 +61,10 @@ class MainMenu:
 
         self.showcase = tk.Canvas(self.menu_win, bg="#090e18", highlightthickness=0)
         self.showcase.grid(row=0, column=0, sticky="nsew")
+        self._scaled_title_art = None
+        self._title_art_zoom = 0
+        self._scaled_menu_images = {}
+        self._menu_image_zoom = 0
         try:
             self.title_art = tk.PhotoImage(file=resource_path("assets/environments/title.png"))
         except (tk.TclError, OSError):
@@ -117,7 +123,11 @@ class MainMenu:
 
         canvas.delete("all")
         if self.title_art:
-            canvas.create_image(width / 2, height / 2, image=self.title_art)
+            art_zoom = max(1, math.ceil(max(width / self.title_art.width(), height / self.title_art.height())))
+            if art_zoom != self._title_art_zoom:
+                self._scaled_title_art = self.title_art.zoom(art_zoom, art_zoom)
+                self._title_art_zoom = art_zoom
+            canvas.create_image(width / 2, height / 2, image=self._scaled_title_art)
         else:
             canvas.create_rectangle(0, 0, width, height, fill="#0e1626", outline="")
         canvas.create_rectangle(*points(28, 35, 535, 225), fill="#080b13", outline="#3d4860", width=max(1, int(scale)), stipple="gray50")
@@ -129,10 +139,17 @@ class MainMenu:
         canvas.create_text(*point(55, 192), text="Choose your path. Break the three seals.\nFace the king beyond the veil.", anchor="nw", font=font("Segoe UI", 11), fill="#bdc8dc")
 
         positions = {"Sword": (125, 525), "Bow": (285, 525), "Axe": (445, 525)}
+        image_zoom = max(1, int(round(scale)))
+        if image_zoom != self._menu_image_zoom:
+            self._scaled_menu_images = {
+                name: image.zoom(image_zoom, image_zoom) if image else None
+                for name, image in self.menu_images.items()
+            }
+            self._menu_image_zoom = image_zoom
         for weapon, (x, y) in positions.items():
             x_pos, y_pos = point(x, y)
             canvas.create_oval(*points(x - 58, y + 37, x + 58, y + 56), fill="#111827", outline="#41506c", width=max(1, int(scale)))
-            image = self.menu_images.get(weapon)
+            image = self._scaled_menu_images.get(weapon)
             if image:
                 canvas.create_image(x_pos, y_pos, image=image)
             else:
@@ -206,12 +223,15 @@ class MainMenu:
         weapon_win.configure(bg=self.BG)
         weapon_win.transient(self.menu_win)
         weapon_win.grab_set()
-        self._center_over_parent(weapon_win, self.menu_win, 760, 430)
+        apply_fullscreen(weapon_win)
 
-        tk.Label(weapon_win, text="CHOOSE YOUR PATH", font=("Georgia", 24, "bold"), fg=self.TEXT, bg=self.BG).pack(pady=(30, 4))
-        tk.Label(weapon_win, text="Your first weapon defines your representative battle sprite.", font=("Arial", 10), fg=self.MUTED, bg=self.BG).pack()
+        weapon_content = tk.Frame(weapon_win, bg=self.BG, width=1040, height=650)
+        weapon_content.place(relx=.5, rely=.5, anchor="center")
+        weapon_content.pack_propagate(False)
+        tk.Label(weapon_content, text="CHOOSE YOUR PATH", font=("Georgia", 28, "bold"), fg=self.TEXT, bg=self.BG).pack(pady=(30, 4))
+        tk.Label(weapon_content, text="Your first weapon defines your representative battle sprite.", font=("Segoe UI", 11), fg=self.MUTED, bg=self.BG).pack()
         choice_var = tk.StringVar(value="")
-        cards = tk.Frame(weapon_win, bg=self.BG)
+        cards = tk.Frame(weapon_content, bg=self.BG)
         cards.pack(fill=tk.BOTH, expand=True, padx=26, pady=24)
         weapon_images = []
 
@@ -233,7 +253,8 @@ class MainMenu:
             button.bind("<Enter>", lambda event: event.widget.config(bg="#243149"))
             button.bind("<Leave>", lambda event: event.widget.config(bg=self.SURFACE))
         weapon_win.weapon_images = weapon_images
-        tk.Button(weapon_win, text="CANCEL", command=weapon_win.destroy, bg=self.BG, fg=self.MUTED, activebackground="#251a22", activeforeground="#ffffff", relief=tk.FLAT, bd=0, font=("Arial", 9, "bold"), cursor="hand2", padx=18, pady=8).pack(pady=(0, 18))
+        tk.Button(weapon_content, text="CANCEL", command=weapon_win.destroy, bg=self.BG, fg=self.MUTED, activebackground="#251a22", activeforeground="#ffffff", relief=tk.FLAT, bd=0, font=("Segoe UI", 9, "bold"), cursor="hand2", padx=18, pady=8).pack(pady=(0, 18))
+        weapon_win.bind("<Escape>", lambda _event: weapon_win.destroy())
         self.root.wait_window(weapon_win)
 
         weapon_choice = choice_var.get()
@@ -261,22 +282,26 @@ class MainMenu:
         window.configure(bg=self.BG)
         window.transient(self.menu_win)
         window.grab_set()
-        self._center_over_parent(window, self.menu_win, 500, 270)
-        header = tk.Frame(window, bg=self.SURFACE, height=86, highlightbackground=self.BORDER, highlightthickness=1)
+        apply_fullscreen(window)
+        name_content = tk.Frame(window, bg=self.BG, width=620, height=360, highlightbackground=self.BORDER, highlightthickness=1)
+        name_content.place(relx=.5, rely=.5, anchor="center")
+        name_content.pack_propagate(False)
+        header = tk.Frame(name_content, bg=self.SURFACE, height=96, highlightbackground=self.BORDER, highlightthickness=1)
         header.pack(fill=tk.X)
         header.pack_propagate(False)
         tk.Label(header, text="NAME YOUR HERO", font=("Georgia", 21, "bold"), fg=self.TEXT, bg=self.SURFACE).pack(anchor="w", padx=26, pady=(17, 0))
         tk.Label(header, text="This name will be written into the chronicles.", font=("Segoe UI", 9), fg=self.MUTED, bg=self.SURFACE).pack(anchor="w", padx=26)
         name_var = tk.StringVar()
-        entry = tk.Entry(window, textvariable=name_var, bg="#0b1019", fg="#ffffff", insertbackground="#ffffff", relief=tk.FLAT, font=("Segoe UI", 15), justify=tk.CENTER, highlightthickness=2, highlightbackground=self.BORDER, highlightcolor=self.BLUE)
+        entry = tk.Entry(name_content, textvariable=name_var, bg="#0b1019", fg="#ffffff", insertbackground="#ffffff", relief=tk.FLAT, font=("Segoe UI", 15), justify=tk.CENTER, highlightthickness=2, highlightbackground=self.BORDER, highlightcolor=self.BLUE)
         entry.pack(fill=tk.X, padx=34, pady=(28, 18), ipady=8)
 
         def submit():
             result["name"] = name_var.get().strip()
             window.destroy()
 
-        tk.Button(window, text="BEGIN JOURNEY", command=submit, bg=self.RED, fg="#ffffff", activebackground="#f05a68", activeforeground="#ffffff", relief=tk.FLAT, bd=0, font=("Segoe UI", 10, "bold"), pady=11).pack(fill=tk.X, padx=34)
+        tk.Button(name_content, text="BEGIN JOURNEY", command=submit, bg=self.RED, fg="#ffffff", activebackground="#f05a68", activeforeground="#ffffff", relief=tk.FLAT, bd=0, font=("Segoe UI", 10, "bold"), pady=11).pack(fill=tk.X, padx=34)
         entry.bind("<Return>", lambda _event: submit())
+        window.bind("<Escape>", lambda _event: window.destroy())
         entry.focus_set()
         self.root.wait_window(window)
         return result["name"]
