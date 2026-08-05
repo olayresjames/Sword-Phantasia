@@ -77,9 +77,14 @@ python tools/check_visual_layouts.py
 ```
 
 ## Building as an Executable (.exe)
-To bundle the game into a standalone Windows executable using PyInstaller, run the following command in the project root:
+
+Install the build dependencies and run the reproducible Windows build script:
+
 ```bash
-pip install pyinstaller
-pyinstaller --noconsole --onefile --add-data "assets;assets" main.py
+python -m pip install -r requirements-build.txt
+powershell -ExecutionPolicy Bypass -File tools/build_executable.ps1
 ```
-Your generated standalone game will be located in the newly created `dist/` folder.
+
+The standalone game is generated at `dist/SwordPhantasia.exe`. Images and audio are bundled inside the executable; save data and settings remain external so progress is retained between builds.
+
+The **Build Windows Executable** GitHub Actions workflow runs the tests and rebuilds the `.exe` after every pushed commit. Download the resulting `SwordPhantasia-Windows-*` artifact from that workflow run. Local source edits do not modify an existing executable automatically—rerun the build script or push the changes to generate a new build.
