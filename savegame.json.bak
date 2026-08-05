@@ -1,12 +1,12 @@
 {
-  "save_version": 5,
+  "save_version": 6,
   "name": "James",
-  "level": 20,
-  "max_hp": 480,
-  "hp": 240,
-  "mana": 45,
-  "experience": 326,
-  "coins": 425,
+  "level": 24,
+  "max_hp": 560,
+  "hp": 507,
+  "mana": 100,
+  "experience": 155,
+  "coins": 608,
   "inventory": [
     {
       "item_name": "Axe",
@@ -19,6 +19,7 @@
       "rarity": "Common",
       "upgrade_level": 0,
       "base_damage": 12.0,
+      "base_defense": 0.0,
       "quantity": 1
     },
     {
@@ -32,6 +33,7 @@
       "rarity": "Common",
       "upgrade_level": 0,
       "base_damage": 0.0,
+      "base_defense": 0.0,
       "quantity": 1
     },
     {
@@ -45,6 +47,7 @@
       "rarity": "Common",
       "upgrade_level": 0,
       "base_damage": 11.0,
+      "base_defense": 0.0,
       "quantity": 1
     },
     {
@@ -58,6 +61,7 @@
       "rarity": "Common",
       "upgrade_level": 0,
       "base_damage": 13.0,
+      "base_defense": 0.0,
       "quantity": 1
     },
     {
@@ -71,6 +75,7 @@
       "rarity": "Common",
       "upgrade_level": 0,
       "base_damage": 8.0,
+      "base_defense": 0.0,
       "quantity": 1
     },
     {
@@ -84,6 +89,7 @@
       "rarity": "Common",
       "upgrade_level": 0,
       "base_damage": 0.0,
+      "base_defense": 12.0,
       "quantity": 1
     },
     {
@@ -97,6 +103,7 @@
       "rarity": "Legendary",
       "upgrade_level": 4,
       "base_damage": 50.0,
+      "base_defense": 0.0,
       "quantity": 1
     },
     {
@@ -110,19 +117,21 @@
       "rarity": "Uncommon",
       "upgrade_level": 0,
       "base_damage": 0.0,
+      "base_defense": 7.0,
       "quantity": 1
     },
     {
       "item_name": "Warden Charm",
       "attributes": "Ancient",
-      "additional_damage": 18.0,
+      "additional_damage": 26.1,
       "is_consumable": false,
       "heal_amount": 0,
       "is_armor": false,
       "defense_bonus": 0.0,
       "rarity": "Rare",
-      "upgrade_level": 0,
+      "upgrade_level": 3,
       "base_damage": 18.0,
+      "base_defense": 0.0,
       "quantity": 1
     },
     {
@@ -136,6 +145,7 @@
       "rarity": "Legendary",
       "upgrade_level": 0,
       "base_damage": 48.0,
+      "base_defense": 0.0,
       "quantity": 1
     },
     {
@@ -145,10 +155,11 @@
       "is_consumable": false,
       "heal_amount": 0,
       "is_armor": true,
-      "defense_bonus": 13.0,
+      "defense_bonus": 18.85,
       "rarity": "Legendary",
-      "upgrade_level": 0,
+      "upgrade_level": 3,
       "base_damage": 0.0,
+      "base_defense": 13.0,
       "quantity": 1
     },
     {
@@ -162,6 +173,7 @@
       "rarity": "Legendary",
       "upgrade_level": 0,
       "base_damage": 26.0,
+      "base_defense": 0.0,
       "quantity": 1
     },
     {
@@ -175,6 +187,7 @@
       "rarity": "Common",
       "upgrade_level": 0,
       "base_damage": 11.0,
+      "base_defense": 0.0,
       "quantity": 1
     },
     {
@@ -188,7 +201,8 @@
       "rarity": "Common",
       "upgrade_level": 0,
       "base_damage": 0.0,
-      "quantity": 1
+      "base_defense": 0.0,
+      "quantity": 2
     },
     {
       "item_name": "Phoenix Ash",
@@ -201,6 +215,7 @@
       "rarity": "Epic",
       "upgrade_level": 0,
       "base_damage": 0.0,
+      "base_defense": 0.0,
       "quantity": 1
     },
     {
@@ -214,6 +229,7 @@
       "rarity": "Uncommon",
       "upgrade_level": 0,
       "base_damage": 0.0,
+      "base_defense": 15.0,
       "quantity": 1
     },
     {
@@ -227,6 +243,7 @@
       "rarity": "Common",
       "upgrade_level": 0,
       "base_damage": 0.0,
+      "base_defense": 0.0,
       "quantity": 2
     },
     {
@@ -240,6 +257,7 @@
       "rarity": "Common",
       "upgrade_level": 0,
       "base_damage": 27.0,
+      "base_defense": 0.0,
       "quantity": 1
     },
     {
@@ -253,11 +271,96 @@
       "rarity": "Uncommon",
       "upgrade_level": 0,
       "base_damage": 38.0,
+      "base_defense": 0.0,
+      "quantity": 1
+    },
+    {
+      "item_name": "Primordial Ember",
+      "attributes": "Full Restore",
+      "additional_damage": 0.0,
+      "is_consumable": true,
+      "heal_amount": 260,
+      "is_armor": false,
+      "defense_bonus": 0.0,
+      "rarity": "Legendary",
+      "upgrade_level": 0,
+      "base_damage": 0.0,
+      "base_defense": 0.0,
+      "quantity": 1
+    },
+    {
+      "item_name": "Heartwood Draught",
+      "attributes": "Full Restore",
+      "additional_damage": 0.0,
+      "is_consumable": true,
+      "heal_amount": 140,
+      "is_armor": false,
+      "defense_bonus": 0.0,
+      "rarity": "Epic",
+      "upgrade_level": 0,
+      "base_damage": 0.0,
+      "base_defense": 0.0,
+      "quantity": 1
+    },
+    {
+      "item_name": "Briarhide Coat",
+      "attributes": "Living Armor",
+      "additional_damage": 0.0,
+      "is_consumable": false,
+      "heal_amount": 0,
+      "is_armor": true,
+      "defense_bonus": 9.0,
+      "rarity": "Uncommon",
+      "upgrade_level": 0,
+      "base_damage": 0.0,
+      "base_defense": 9.0,
+      "quantity": 1
+    },
+    {
+      "item_name": "Thornwood Bow",
+      "attributes": "Barbed",
+      "additional_damage": 20.0,
+      "is_consumable": false,
+      "heal_amount": 0,
+      "is_armor": false,
+      "defense_bonus": 0.0,
+      "rarity": "Common",
+      "upgrade_level": 0,
+      "base_damage": 20.0,
+      "base_defense": 0.0,
+      "quantity": 1
+    },
+    {
+      "item_name": "Warchief's Fang",
+      "attributes": "War-Trophy",
+      "additional_damage": 31.0,
+      "is_consumable": false,
+      "heal_amount": 0,
+      "is_armor": false,
+      "defense_bonus": 0.0,
+      "rarity": "Rare",
+      "upgrade_level": 0,
+      "base_damage": 31.0,
+      "base_defense": 0.0,
+      "quantity": 1
+    },
+    {
+      "item_name": "Mooncap Poultice",
+      "attributes": "Restorative",
+      "additional_damage": 0.0,
+      "is_consumable": true,
+      "heal_amount": 55,
+      "is_armor": false,
+      "defense_bonus": 0.0,
+      "rarity": "Common",
+      "upgrade_level": 0,
+      "base_damage": 0.0,
+      "base_defense": 0.0,
       "quantity": 1
     }
   ],
   "starting_weapon": "Axe",
-  "current_region": "throne",
+  "current_region": "crypt",
   "quest_progress": {
     "slime_tide": 3,
     "goblin_warband": 4,
@@ -265,8 +368,10 @@
     "primordial_night": 1,
     "trial_of_ashes": 3,
     "gel_research": 1,
-    "embers_of_tomorrow": 1,
-    "vault_cartography": 1
+    "embers_of_tomorrow": 2,
+    "vault_cartography": 1,
+    "mooncap_harvest": 3,
+    "scouts_choice": 1
   },
   "completed_quests": [
     "slime_tide",
@@ -274,7 +379,10 @@
     "restless_dead",
     "primordial_night",
     "trial_of_ashes",
-    "vault_cartography"
+    "vault_cartography",
+    "embers_of_tomorrow",
+    "scouts_choice",
+    "mooncap_harvest"
   ],
   "defeated_minibosses": [
     "bonewyrm",
@@ -282,29 +390,39 @@
     "tideheart"
   ],
   "materials": {
-    "metal_scrap": 7,
+    "metal_scrap": 15,
     "prismatic_gel": 1,
-    "warden_ash": 3,
-    "void_ember": 1
+    "warden_ash": 4,
+    "void_ember": 2,
+    "mooncap_spore": 6
   },
   "discovered_landmarks": [
-    "warden_vault"
+    "warden_vault",
+    "void_gallery",
+    "mooncap_sanctum"
   ],
   "story_choices": [
     "aid_pilgrim:aid",
-    "free_spirit:aid"
+    "free_spirit:aid",
+    "guide_scout:aid"
+  ],
+  "tutorial_flags": [
+    "movement",
+    "exploration",
+    "combat_intent"
   ],
   "equipped_weapon": {
     "item_name": "Warden Charm",
     "attributes": "Ancient",
-    "additional_damage": 18.0,
+    "additional_damage": 26.1,
     "is_consumable": false,
     "heal_amount": 0,
     "is_armor": false,
     "defense_bonus": 0.0,
     "rarity": "Rare",
-    "upgrade_level": 0,
+    "upgrade_level": 3,
     "base_damage": 18.0,
+    "base_defense": 0.0,
     "quantity": 1
   },
   "equipped_armor": {
@@ -314,10 +432,11 @@
     "is_consumable": false,
     "heal_amount": 0,
     "is_armor": true,
-    "defense_bonus": 13.0,
+    "defense_bonus": 18.85,
     "rarity": "Legendary",
-    "upgrade_level": 0,
+    "upgrade_level": 3,
     "base_damage": 0.0,
+    "base_defense": 13.0,
     "quantity": 1
   }
 }

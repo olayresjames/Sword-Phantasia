@@ -4,6 +4,10 @@
   "music_volume": 0.29,
   "sfx_volume": 0.29,
   "display_mode": "Fullscreen",
+  "ui_scale": "100%",
+  "color_vision": "Default",
+  "high_contrast": false,
+  "reduce_flashes": false,
   "reduce_animations": false,
   "keybindings": {
     "walk_forward": "w",

@@ -6,8 +6,9 @@ import os
 from character import experience_to_next_level
 from audio_manager import audio_manager
 from game_data import COMBAT, difficulty_profile, scale_enemy_stats, scale_player_damage, scale_rewards
-from game_settings import apply_display_mode, key_sequence, settings
+from game_settings import accessible_color, apply_display_mode, key_sequence, settings
 from loot_data import RARITY_COLORS, miniboss_loot, reward_ranges, roll_region_loot
+from ui_layout import layout_metrics
 from quests import record_defeat, record_event
 from skills import all_skills, class_name, mastery_multiplier, mastery_rank, newly_reached_mastery, newly_unlocked_skills, unlocked_skills
 from world_data import DEMON_KING, choose_enemy_intent, choose_monster, current_region
@@ -106,6 +107,7 @@ class VictoryScreen(tk.Toplevel):
         self.grab_set()
         self.protocol("WM_DELETE_WINDOW", self.destroy)
         apply_display_mode(self)
+        audio_manager.play_sound("victory")
 
         banner_host = tk.Canvas(self, height=205, bg="#0c1120", highlightthickness=0)
         banner_host.pack(fill=tk.X)
@@ -382,7 +384,7 @@ class BattlePanel(tk.Toplevel):
         base_attack = random.randint(*self.monster_spec.attack_range) + region_level_bonus
         self.monster_max_hp, self.monster_attack = scale_enemy_stats(base_hp, base_attack, self.difficulty)
         self.monster_hp = self.monster_max_hp
-        self.enemy_intent = choose_enemy_intent(self.monster_family, 1.0)
+        self.enemy_intent = choose_enemy_intent(self.monster_family, 1.0, self.monster_name)
             
         self._configure_battle_styles()
 
@@ -395,9 +397,11 @@ class BattlePanel(tk.Toplevel):
         tk.Label(header, text=encounter_text, font=("Arial", 10, "bold"), fg=self.accent, bg="#111624").pack(side=tk.LEFT, padx=12)
         self.turn_badge = tk.Label(header, text="YOUR TURN", font=("Arial", 10, "bold"), fg="#08100c", bg="#55e6a5", padx=16, pady=7)
         self.turn_badge.pack(side=tk.RIGHT, padx=24, pady=12)
+        self.phase_badge = tk.Label(header, text="", font=("Segoe UI", 9, "bold"), fg="#ffffff", bg="#63369a", padx=13, pady=7)
 
         # Keep the command deck compact so the arena remains the visual focus.
-        ui_frame = tk.Frame(self, bg="#0d111c", height=218, highlightbackground="#30394f", highlightthickness=1)
+        battle_layout = layout_metrics(self.winfo_screenwidth(), self.winfo_screenheight())
+        ui_frame = tk.Frame(self, bg="#0d111c", height=battle_layout.battle_deck_height, highlightbackground="#30394f", highlightthickness=1)
         ui_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=12, pady=(0, 12))
         ui_frame.pack_propagate(False)
 
@@ -456,6 +460,8 @@ class BattlePanel(tk.Toplevel):
         tk.Label(player_header, text=str(weapon).upper(), font=("Arial", 8, "bold"), fg="#8ebde8", bg="#202a3d", padx=9, pady=4).pack(side=tk.RIGHT)
         self.p_class_lbl = tk.Label(player_frame, font=("Arial", 8, "bold"), fg="#b994ff", bg="#141a27")
         self.p_class_lbl.pack(anchor="w", padx=16)
+        self.p_status_lbl = tk.Label(player_frame, text="STATUS  •  READY", font=("Segoe UI", 8, "bold"), fg="#67dca5", bg="#141a27")
+        self.p_status_lbl.place(relx=.95, y=42, anchor="ne")
         self.p_hp_lbl = tk.Label(player_frame, font=("Consolas", 10, "bold"), fg="#ff8089", bg="#141a27")
         self.p_hp_lbl.pack(anchor="w", padx=16)
         self.p_hp_bar = ttk.Progressbar(player_frame, style="PlayerHP.Horizontal.TProgressbar", orient="horizontal", mode="determinate")
@@ -547,7 +553,27 @@ class BattlePanel(tk.Toplevel):
         play_bgm(True)
         if not settings.get("reduce_animations"):
             self._start_idle_animation()
+        self.after(350, lambda: self._show_battle_tutorial("combat_intent", "READ THE NEXT MOVE", "The target card shows what the enemy will do next. Use Defend against heavy attacks, or interrupt them with a class skill for bonus damage."))
         self.wait_window(self)
+
+    def _show_battle_tutorial(self, key, title, message):
+        flags = getattr(self.player, "tutorial_flags", [])
+        if key in flags or getattr(self, "_tutorial_card", None):
+            return
+        card = tk.Frame(self, bg="#111724", highlightbackground="#ffd166", highlightthickness=2)
+        card.place(relx=.5, rely=.105, anchor="n", width=650)
+        self._tutorial_card = card
+        tk.Label(card, text=f"BATTLE LESSON  •  {title}", font=("Segoe UI", 10, "bold"), fg="#ffd166", bg="#111724").pack(anchor="w", padx=20, pady=(14, 4))
+        tk.Label(card, text=message, wraplength=590, justify=tk.LEFT, font=("Segoe UI", 10), fg="#cbd4e5", bg="#111724").pack(anchor="w", padx=20)
+
+        def dismiss():
+            if key not in flags:
+                flags.append(key)
+                self.player.save_to_file()
+            card.destroy()
+            self._tutorial_card = None
+
+        tk.Button(card, text="READY", command=dismiss, bg="#8b6829", fg="#ffffff", activebackground="#b78a37", activeforeground="#ffffff", relief=tk.FLAT, bd=0, font=("Segoe UI", 9, "bold"), padx=18, pady=7).pack(anchor="e", padx=16, pady=11)
 
     def _configure_battle_styles(self):
         style = ttk.Style(self)
@@ -609,17 +635,12 @@ class BattlePanel(tk.Toplevel):
         )
         self.scene_frame.tag_lower(impact_ring, sprite)
         slash_items = []
-        for offset in (-18, 0, 18):
-            slash_items.append(self.scene_frame.create_line(
-                x - 46 + offset, y + 40, x + 34 + offset, y - 42,
-                fill="#fff0bd", width=4, tags="effect"
-            ))
         spark_items = []
-        for dx, dy in ((-58, -8), (52, -22), (-36, 48), (45, 38), (0, -62)):
-            spark_items.append(self.scene_frame.create_oval(
-                x + dx - 3, y + dy - 3, x + dx + 3, y + dy + 3,
-                fill=color, outline="", tags="effect"
-            ))
+        if not settings.get("reduce_flashes"):
+            for offset in (-18, 0, 18):
+                slash_items.append(self.scene_frame.create_line(x - 46 + offset, y + 40, x + 34 + offset, y - 42, fill="#fff0bd", width=4, tags="effect"))
+            for dx, dy in ((-58, -8), (52, -22), (-36, 48), (45, 38), (0, -62)):
+                spark_items.append(self.scene_frame.create_oval(x + dx - 3, y + dy - 3, x + dx + 3, y + dy + 3, fill=color, outline="", tags="effect"))
 
         def restore():
             if self.winfo_exists():
@@ -672,6 +693,14 @@ class BattlePanel(tk.Toplevel):
         self.p_mana_lbl.config(text=f"MP   {self.player.mana} / 100")
         self.p_mana_bar['maximum'] = 100
         self._tween_bar(self.p_mana_bar, self.player.mana)
+        statuses = []
+        if self.skill_guard_bonus:
+            statuses.append("AEGIS")
+        if self.evade_next_attack:
+            statuses.append("EVADE")
+        if self.next_attack_bonus:
+            statuses.append("EMPOWERED")
+        self.p_status_lbl.config(text=f"STATUS  •  {' / '.join(statuses) if statuses else 'READY'}", fg=accessible_color("success", "#67dca5"))
         
         # Dynamic Buttons
         player_can_act = self.turn_state == "player"
@@ -742,9 +771,9 @@ class BattlePanel(tk.Toplevel):
         self.m_hp_percent_lbl.config(text=f"{hp_percent}%")
         self.m_hp_bar['maximum'] = self.monster_max_hp
         self._tween_bar(self.m_hp_bar, visible_hp)
-        intent_colors = {"heal": "#67dca5", "guard": "#72baff", "steal": "#ffd166"}
+        intent_colors = {"heal": accessible_color("success", "#67dca5"), "guard": accessible_color("mana", "#72baff"), "steal": "#ffd166"}
         intent_color = intent_colors.get(self.enemy_intent.kind, "#ff8993" if self._is_heavy_intent() else "#ffd166")
-        self.m_intent_lbl.config(text=f"NEXT  •  {self.enemy_intent.label.upper()}  [{self._intent_hint()}]", fg=intent_color)
+        self.m_intent_lbl.config(text=f"{self.enemy_intent.icon}  NEXT  •  {self.enemy_intent.label.upper()}  [{self._intent_hint()}]", fg=intent_color)
 
     def _intent_hint(self):
         intent = self.enemy_intent
@@ -756,7 +785,10 @@ class BattlePanel(tk.Toplevel):
             return "STEALS GOLD"
         if intent.multiplier >= HEAVY_INTENT_THRESHOLD:
             return "HEAVY — SKILL OR DEFEND"
-        return "ATTACK"
+        details = f"{intent.hits} HITS" if intent.hits > 1 else "ATTACK"
+        if intent.mana_damage:
+            details += f" — DRAINS {intent.mana_damage} MP"
+        return details
 
     def _is_heavy_intent(self):
         return self.enemy_intent.kind == "attack" and self.enemy_intent.multiplier >= HEAVY_INTENT_THRESHOLD
@@ -780,6 +812,9 @@ class BattlePanel(tk.Toplevel):
         if new_phase <= self.boss_phase:
             return
         self.boss_phase = new_phase
+        self.phase_badge.config(text=f"BOSS PHASE {new_phase}")
+        if not self.phase_badge.winfo_ismapped():
+            self.phase_badge.pack(side=tk.RIGHT, padx=(0, 8), pady=12, before=self.turn_badge)
         if new_phase == 2:
             self.append_text("Demon King Koji enters Phase II: Hellfire Awakening!", "enemy")
         else:
@@ -1052,13 +1087,19 @@ class BattlePanel(tk.Toplevel):
             self._animation_jobs.append(self.after(self._delay(500), self._finish_enemy_turn))
             return
         play_sound("damage")
-        taken = self._incoming_damage(defending=defending, multiplier=intent.multiplier)
+        taken_per_hit = self._incoming_damage(defending=defending, multiplier=intent.multiplier)
+        taken = taken_per_hit * max(1, intent.hits)
         self.player.hp -= taken
         self._animate_hit("player", taken)
         if defending:
             self.append_text(f"{self.monster_name} attacks, but your guard reduces it to {taken} damage.", "enemy")
         else:
-            self.append_text(f"{self.monster_name} uses {intent.label} for {taken} damage.", "enemy")
+            hit_text = f" across {intent.hits} hits" if intent.hits > 1 else ""
+            self.append_text(f"{self.monster_name} uses {intent.label} for {taken} damage{hit_text}.", "enemy")
+        if intent.mana_damage:
+            drained = min(self.player.mana, intent.mana_damage)
+            self.player.mana -= drained
+            self.append_text(f"The attack drains {drained} MP.", "skill")
         if intent.kind == "steal":
             stolen = min(self.player.coins, random.randint(3, 8))
             self.player.coins -= stolen
@@ -1101,9 +1142,9 @@ class BattlePanel(tk.Toplevel):
 
     def _prepare_enemy_intent(self):
         hp_ratio = max(0, self.monster_hp) / self.monster_max_hp
-        self.enemy_intent = choose_enemy_intent(self.monster_family, hp_ratio)
+        self.enemy_intent = choose_enemy_intent(self.monster_family, hp_ratio, self.monster_name)
         if hasattr(self, "m_intent_lbl"):
-            self.m_intent_lbl.config(text=f"INTENT  •  {self.enemy_intent.label.upper()}  [{self._intent_hint()}]")
+            self.update_monster_stats()
 
     def player_defeated(self):
         self.append_text(f"You were defeated by {self.monster_name}.", "enemy")

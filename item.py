@@ -56,7 +56,7 @@ KNOWN_RARITY = {
 
 
 class Item:
-    def __init__(self, item_name, attributes, additional_damage, is_consumable=False, heal_amount=0, is_armor=False, defense_bonus=0.0, rarity="Common", upgrade_level=0, base_damage=None, quantity=1):
+    def __init__(self, item_name, attributes, additional_damage, is_consumable=False, heal_amount=0, is_armor=False, defense_bonus=0.0, rarity="Common", upgrade_level=0, base_damage=None, quantity=1, base_defense=None):
         self.item_name = item_name
         self.attributes = attributes
         self.additional_damage = additional_damage
@@ -67,6 +67,7 @@ class Item:
         self.rarity = rarity
         self.upgrade_level = max(0, int(upgrade_level))
         self.base_damage = float(additional_damage if base_damage is None else base_damage)
+        self.base_defense = float(defense_bonus if base_defense is None else base_defense)
         self.quantity = max(1, int(quantity))
 
     def stack_key(self):
@@ -80,7 +81,7 @@ class Item:
 
     def apply_upgrades(self, percentage):
         """Compatibility wrapper for older callers; upgrades now use forge tiers."""
-        return self.upgrade_weapon()
+        return self.upgrade_equipment()
 
     @property
     def max_upgrade_level(self):
@@ -99,23 +100,55 @@ class Item:
         return f"{prefix}+{self.upgrade_level}"
 
     def next_upgrade_damage(self):
-        if self.at_max_upgrade or self.base_damage <= 0:
+        if self.is_armor or self.at_max_upgrade or self.base_damage <= 0:
             return self.additional_damage
         next_level = self.upgrade_level + 1
         return round(self.base_damage * (1.0 + UPGRADE_DAMAGE_PER_LEVEL * next_level), 2)
 
+    def next_upgrade_defense(self):
+        if not self.is_armor or self.at_max_upgrade or self.base_defense <= 0:
+            return self.defense_bonus
+        next_level = self.upgrade_level + 1
+        return round(self.base_defense * (1.0 + UPGRADE_DAMAGE_PER_LEVEL * next_level), 2)
+
+    def current_power(self):
+        return float(self.defense_bonus if self.is_armor else self.additional_damage)
+
+    def base_power(self):
+        return float(self.base_defense if self.is_armor else self.base_damage)
+
+    def next_upgrade_power(self):
+        return self.next_upgrade_defense() if self.is_armor else self.next_upgrade_damage()
+
+    def stat_label(self):
+        return "DEF" if self.is_armor else "DMG"
+
     def upgrade_cost(self):
-        if self.at_max_upgrade or self.base_damage <= 0:
+        base_power = self.base_power()
+        if self.is_consumable or self.at_max_upgrade or base_power <= 0:
             return None
         rarity_multiplier = FORGE_RARITY_MULTIPLIERS.get(self.rarity, 1.0)
-        cost = (FORGE_BASE_COST + int(self.base_damage * FORGE_DAMAGE_COST_MULTIPLIER) + self.upgrade_level * FORGE_TIER_COST) * rarity_multiplier
+        cost = (FORGE_BASE_COST + int(base_power * FORGE_DAMAGE_COST_MULTIPLIER) + self.upgrade_level * FORGE_TIER_COST) * rarity_multiplier
         return max(40, int(round(cost / 5.0) * 5))
 
     def upgrade_weapon(self):
-        if self.at_max_upgrade or self.base_damage <= 0:
+        if self.is_armor:
+            return False
+        return self.upgrade_equipment()
+
+    def upgrade_armor(self):
+        if not self.is_armor:
+            return False
+        return self.upgrade_equipment()
+
+    def upgrade_equipment(self):
+        if self.is_consumable or self.at_max_upgrade or self.base_power() <= 0:
             return False
         self.upgrade_level += 1
-        self.additional_damage = round(self.base_damage * (1.0 + UPGRADE_DAMAGE_PER_LEVEL * self.upgrade_level), 2)
+        if self.is_armor:
+            self.defense_bonus = round(self.base_defense * (1.0 + UPGRADE_DAMAGE_PER_LEVEL * self.upgrade_level), 2)
+        else:
+            self.additional_damage = round(self.base_damage * (1.0 + UPGRADE_DAMAGE_PER_LEVEL * self.upgrade_level), 2)
         return True
 
     def to_dict(self):
@@ -130,6 +163,7 @@ class Item:
             "rarity": self.rarity,
             "upgrade_level": self.upgrade_level,
             "base_damage": self.base_damage,
+            "base_defense": self.base_defense,
             "quantity": self.quantity,
         }
 
@@ -155,4 +189,5 @@ class Item:
             upgrade_level,
             base_damage,
             data.get("quantity", 1),
+            data.get("base_defense", data.get("defense_bonus", 0.0)),
         )

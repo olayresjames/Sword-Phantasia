@@ -15,6 +15,7 @@ from loot_data import RARITY_COLORS, roll_region_loot
 from quests import QUESTS, completed_quest_keys, primary_objective, quest_objective_label, quest_progress, record_event
 from skills import CLASS_SKILLS, class_name, mastery_rank
 from ui_dialogs import alert, confirm
+from ui_layout import layout_metrics
 from world_data import MINIBOSSES, MINIBOSS_QUESTS, REGIONS, all_minibosses_defeated, current_region, defeated_miniboss_keys, miniboss_for_region
 
 
@@ -48,6 +49,7 @@ class GamePanel(tk.Frame):
         self._toast_job = None
         self._bar_jobs = {}
         self.region_images = {}
+        self._audio_region = None
 
         self._configure_styles()
         self._build_header()
@@ -56,6 +58,9 @@ class GamePanel(tk.Frame):
         self._bind_shortcuts()
         self.update_stats()
         self.append_text(f"{self.player.name}'s journey begins at the Frontier Crossroads.", "system")
+        self._play_region_audio()
+        self._tutorial_card = None
+        self.after(450, lambda: self._show_tutorial("movement", "MOVE THROUGH THE REALM", "Use WASD, the arrow keys, or the travel pad. Each route can reveal encounters and regional discoveries."))
 
     def _configure_styles(self):
         style = ttk.Style(self)
@@ -160,7 +165,8 @@ class GamePanel(tk.Frame):
         center = tk.Frame(parent, bg=self.BG)
         center.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=8)
 
-        self.region_scene = tk.Canvas(center, height=226, bg="#090d16", highlightbackground=self.BORDER, highlightthickness=1)
+        metrics = layout_metrics(self.winfo_screenwidth(), self.winfo_screenheight())
+        self.region_scene = tk.Canvas(center, height=metrics.region_scene_height, bg="#090d16", highlightbackground=self.BORDER, highlightthickness=1)
         self.region_scene.pack(fill=tk.X, pady=(0, 10))
         self.region_scene.pack_propagate(False)
         for key, path in self.REGION_ART.items():
@@ -232,6 +238,49 @@ class GamePanel(tk.Frame):
         self.region_scene.itemconfigure(self.region_scene_image, image=image or "")
         rank = list(REGIONS).index(region.key) + 1 if region.key in REGIONS else 1
         self.region_badge.config(text=f"REGION {rank}  •  {region.name.upper()}")
+        landmark_count = len(getattr(self.player, "discovered_landmarks", []))
+        if landmark_count:
+            self.region_scene.delete("landmark_status")
+            self.region_scene.create_text(18, 18, text=f"◆ {landmark_count} LANDMARK{'S' if landmark_count != 1 else ''} DISCOVERED", anchor="nw", font=("Segoe UI", 9, "bold"), fill="#ffd166", tags="landmark_status")
+        self._play_region_audio()
+
+    def _play_region_audio(self):
+        region_key = current_region(self.player).key
+        if self._audio_region == region_key:
+            return
+        self._audio_region = region_key
+        audio_manager.configure(settings.get("music_volume"), settings.get("sfx_volume"))
+        audio_manager.play_music(f"region_{region_key}")
+
+    def _show_tutorial(self, key, title, message):
+        if key in set(getattr(self.player, "tutorial_flags", [])) or self._tutorial_card is not None:
+            return
+        card = tk.Frame(self, bg="#111724", highlightbackground=self.GOLD, highlightthickness=2)
+        card.place(relx=.5, rely=.14, anchor="n", width=620)
+        self._tutorial_card = card
+        tk.Label(card, text=f"FIELD LESSON  •  {title}", font=("Segoe UI", 10, "bold"), fg=self.GOLD, bg="#111724").pack(anchor="w", padx=20, pady=(15, 5))
+        tk.Label(card, text=message, wraplength=560, justify=tk.LEFT, font=("Segoe UI", 10), fg="#cbd4e5", bg="#111724").pack(anchor="w", padx=20)
+
+        def dismiss():
+            if key not in self.player.tutorial_flags:
+                self.player.tutorial_flags.append(key)
+                self.player.save_to_file()
+            card.destroy()
+            self._tutorial_card = None
+
+        tk.Button(card, text="GOT IT", command=dismiss, bg="#8b6829", fg="#ffffff", activebackground="#b78a37", activeforeground="#ffffff", relief=tk.FLAT, bd=0, font=("Segoe UI", 9, "bold"), padx=18, pady=7).pack(anchor="e", padx=16, pady=12)
+
+    def _render_scene_event(self, event):
+        canvas = self.region_scene
+        canvas.delete("event_visual")
+        width = max(520, canvas.winfo_width())
+        height = max(220, canvas.winfo_height())
+        icons = {"treasure": "◆", "material": "✦", "landmark": "⌂", "choice": "?", "shrine": "✧", "trap": "⚠", "merchant": "₲"}
+        colors = {"treasure": self.GOLD, "material": self.GREEN, "landmark": self.BLUE, "choice": self.PURPLE, "shrine": "#d9c5ff", "trap": self.RED, "merchant": self.GOLD}
+        x1, y1, x2, y2 = int(width * .69), int(height * .20), int(width * .96), int(height * .70)
+        canvas.create_rectangle(x1, y1, x2, y2, fill="#0b1019", outline=colors.get(event.kind, self.BLUE), width=2, stipple="gray50", tags="event_visual")
+        canvas.create_text((x1 + x2) // 2, y1 + 33, text=icons.get(event.kind, "✦"), font=("Segoe UI Symbol", 28, "bold"), fill=colors.get(event.kind, self.BLUE), tags="event_visual")
+        canvas.create_text((x1 + x2) // 2, y1 + 75, text=event.title.upper(), width=max(130, x2 - x1 - 24), justify=tk.CENTER, font=("Segoe UI", 9, "bold"), fill="#f2f5ff", tags="event_visual")
 
     def _animate_region_ambience(self):
         if not self.winfo_exists():
@@ -278,7 +327,7 @@ class GamePanel(tk.Frame):
         settlement = tk.Frame(panel, bg=self.SURFACE)
         settlement.pack(fill=tk.X, padx=13)
         self._action_button(settlement, "SHOP", "Shop", 0, 0, "Purchase equipment and supplies")
-        self._action_button(settlement, "SMITH", "Blacksmith", 0, 1, "Upgrade your equipped weapon")
+        self._action_button(settlement, "SMITH", "Blacksmith", 0, 1, "Improve owned weapons and armor")
 
         self.champion_btn = tk.Button(
             panel,
@@ -426,14 +475,14 @@ class GamePanel(tk.Frame):
         self.xp_lbl.config(text=f"{self.player.experience} / {xp_required}")
         self._animate_bar(self.xp_bar, self.player.experience, xp_required)
         self.weapon_lbl.config(text=f"{weapon.item_name} {weapon.forge_label()}" if weapon else "None")
-        self.armor_lbl.config(text=armor.item_name if armor else "None")
+        self.armor_lbl.config(text=f"{armor.item_name} {armor.forge_label()}" if armor else "None")
         self.location_lbl.config(text=self.location_name)
         self.location_desc_lbl.config(text=self.location_description)
         self._update_region_scene()
 
         equippables = [item for item in self.player.inventory if not getattr(item, "is_consumable", False)]
         self._set_button_state("Equip", bool(equippables), "No equipment available")
-        self._set_button_state("Blacksmith", weapon is not None, "Equip a weapon to use the smith")
+        self._set_button_state("Blacksmith", bool(equippables), "No equipment available to forge")
 
         region_key = self.player.current_region
         region_boss = MINIBOSSES.get(region_key)
@@ -583,6 +632,8 @@ class GamePanel(tk.Frame):
                 self.player.save_to_file()
                 self.save_status_lbl.config(text="AUTOSAVED", fg=self.GREEN)
                 self.update_stats()
+            self._audio_region = None
+            self._play_region_audio()
             return battle
 
     def _return_to_title_now(self):
@@ -594,6 +645,7 @@ class GamePanel(tk.Frame):
     def resolve_exploration_event(self):
         region = current_region(self.player)
         event = choose_exploration_event(self.player, region.key)
+        self._render_scene_event(event)
         self.append_text(f"{event.title}: {event.description}", "special")
         updates, completions = [], []
 
@@ -848,49 +900,191 @@ class GamePanel(tk.Frame):
         listbox.bind("<<ListboxSelect>>", on_select)
 
     def visit_blacksmith(self):
-        weapon = getattr(self.player, "equipped_weapon", None)
-        if not weapon:
-            self.show_toast("EQUIP A WEAPON FIRST", self.RED)
+        equipment = [item for item in self.player.inventory if not item.is_consumable]
+        for equipped in (getattr(self.player, "equipped_weapon", None), getattr(self.player, "equipped_armor", None)):
+            if equipped and not any(item is equipped for item in equipment):
+                equipment.append(equipped)
+        if not equipment:
+            self.show_toast("NO EQUIPMENT TO FORGE", self.RED)
             return
-        window, content = self._modal("THE BLACKSMITH", "Five forge tiers. Linear power. Rising cost.", "600x460")
-        tk.Label(content, text="EQUIPPED WEAPON", font=("Arial", 9, "bold"), fg=self.MUTED, bg=self.SURFACE).pack(anchor="w", padx=28, pady=(24, 5))
-        tk.Label(content, text=f"{weapon.item_name}  {weapon.forge_label()}", font=("Georgia", 24, "bold"), fg=self.TEXT, bg=self.SURFACE).pack(anchor="w", padx=28)
 
-        comparison = tk.Frame(content, bg=self.SURFACE_ALT)
-        comparison.pack(fill=tk.X, padx=28, pady=22)
-        current = weapon.additional_damage
-        upgraded = weapon.next_upgrade_damage()
-        tk.Label(comparison, text=f"CURRENT\n{current:.1f} DMG", font=("Consolas", 12, "bold"), fg=self.MUTED, bg=self.SURFACE_ALT, justify=tk.CENTER).pack(side=tk.LEFT, expand=True, pady=18)
-        tk.Label(comparison, text="➜", font=("Arial", 20, "bold"), fg=self.GOLD, bg=self.SURFACE_ALT).pack(side=tk.LEFT)
-        after_text = f"AFTER +{weapon.upgrade_level + 1}\n{upgraded:.1f} DMG" if not weapon.at_max_upgrade else f"FORGE LIMIT\n{current:.1f} DMG"
-        tk.Label(comparison, text=after_text, font=("Consolas", 12, "bold"), fg=self.GREEN if not weapon.at_max_upgrade else self.GOLD, bg=self.SURFACE_ALT, justify=tk.CENTER).pack(side=tk.LEFT, expand=True, pady=18)
+        window, content = self._modal(
+            "EMBER & ANVIL",
+            "Select any owned weapon or armor. The workshop stays open between upgrades.",
+            "1040x680",
+        )
+        currency = tk.Frame(content, bg="#0b1019", height=54, highlightbackground=self.BORDER, highlightthickness=1)
+        currency.pack(fill=tk.X, padx=22, pady=(18, 10))
+        currency.pack_propagate(False)
+        tk.Label(currency, text="BLACKSMITH WORKSHOP", font=("Segoe UI", 9, "bold"), fg=self.GOLD, bg="#0b1019").pack(side=tk.LEFT, padx=17)
+        tk.Label(currency, text="Each tier adds 15% of the item's base stat", font=("Segoe UI", 9), fg=self.MUTED, bg="#0b1019").pack(side=tk.LEFT, padx=16)
+        funds_lbl = tk.Label(currency, text="", font=("Consolas", 12, "bold"), fg=self.GOLD, bg="#0b1019")
+        funds_lbl.pack(side=tk.RIGHT, padx=18)
 
-        cost = weapon.upgrade_cost()
-        can_afford = cost is not None and self.player.coins >= cost
-        if weapon.is_legacy_upgrade:
-            cost_text = f"LEGACY WEAPON  •  PRESERVED ABOVE THE +{weapon.max_upgrade_level} CAP"
-        elif weapon.at_max_upgrade:
-            cost_text = f"MAXIMUM FORGE TIER  •  +{weapon.max_upgrade_level}"
-        else:
-            cost_text = f"COST  {cost} G    •    FUNDS  {self.player.coins} G"
-        cost_lbl = tk.Label(content, text=cost_text, font=("Arial", 10, "bold"), fg=self.GOLD if can_afford or weapon.at_max_upgrade else self.RED, bg=self.SURFACE)
-        cost_lbl.pack()
+        workspace = tk.Frame(content, bg=self.SURFACE)
+        workspace.pack(fill=tk.BOTH, expand=True, padx=22, pady=(0, 18))
+        catalog = tk.Frame(workspace, bg="#0b1019", width=370, highlightbackground=self.BORDER, highlightthickness=1)
+        catalog.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 9))
+        catalog.pack_propagate(False)
+        details = tk.Frame(workspace, bg=self.SURFACE_ALT, highlightbackground=self.BORDER, highlightthickness=1)
+        details.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=(9, 0))
 
-        def upgrade():
-            current_cost = weapon.upgrade_cost()
-            if current_cost is None or not self.player.spend_coins(current_cost):
+        tk.Label(catalog, text="OWNED EQUIPMENT", font=("Segoe UI", 10, "bold"), fg=self.TEXT, bg="#0b1019").pack(anchor="w", padx=18, pady=(18, 9))
+        filters = tk.Frame(catalog, bg="#0b1019")
+        filters.pack(fill=tk.X, padx=12, pady=(0, 10))
+        filter_name = tk.StringVar(value="ALL")
+        filter_buttons = {}
+        visible_items = []
+        selected_item = {"item": None}
+
+        equipment_list = tk.Listbox(catalog, bg="#080c13", fg=self.TEXT, selectbackground="#8b6829", selectforeground="#ffffff", font=("Consolas", 10, "bold"), relief=tk.FLAT, bd=0, activestyle="none", exportselection=False)
+        equipment_list.pack(fill=tk.BOTH, expand=True, padx=12, pady=(0, 12))
+        tk.Label(catalog, text="◆ equipped   W weapon   A armor", font=("Consolas", 8), fg="#68758b", bg="#0b1019").pack(anchor="w", padx=16, pady=(0, 14))
+
+        forge_footer = tk.Frame(details, bg="#0d131e", height=92, highlightbackground=self.BORDER, highlightthickness=1)
+        forge_footer.pack(side=tk.BOTTOM, fill=tk.X)
+        forge_footer.pack_propagate(False)
+        cost_lbl = tk.Label(forge_footer, text="SELECT EQUIPMENT", font=("Segoe UI", 9, "bold"), fg=self.MUTED, bg="#0d131e")
+        cost_lbl.pack(side=tk.LEFT, padx=22)
+        forge_btn = tk.Button(forge_footer, text="SELECT EQUIPMENT", bg="#252b37", fg=self.MUTED, activebackground="#c99a3e", activeforeground="#171008", relief=tk.FLAT, bd=0, font=("Segoe UI", 10, "bold"), padx=26, pady=13, cursor="hand2", state=tk.DISABLED)
+        forge_btn.pack(side=tk.RIGHT, padx=20)
+
+        detail_body = tk.Frame(details, bg=self.SURFACE_ALT)
+        detail_body.pack(fill=tk.BOTH, expand=True, padx=30, pady=24)
+        type_lbl = tk.Label(detail_body, text="SELECT AN ITEM", font=("Segoe UI", 9, "bold"), fg=self.GOLD, bg=self.SURFACE_ALT)
+        type_lbl.pack(anchor="w")
+        name_lbl = tk.Label(detail_body, text="Choose equipment from the forge rack", wraplength=520, justify=tk.LEFT, font=("Georgia", 23, "bold"), fg=self.TEXT, bg=self.SURFACE_ALT)
+        name_lbl.pack(anchor="w", pady=(5, 3))
+        trait_lbl = tk.Label(detail_body, text="Weapons gain damage; armor gains defense.", font=("Segoe UI", 10), fg=self.MUTED, bg=self.SURFACE_ALT)
+        trait_lbl.pack(anchor="w")
+
+        tier_panel = tk.Frame(detail_body, bg="#111724", highlightbackground=self.BORDER, highlightthickness=1)
+        tier_panel.pack(fill=tk.X, pady=(24, 14))
+        tk.Label(tier_panel, text="FORGE PROGRESS", font=("Segoe UI", 8, "bold"), fg="#77859d", bg="#111724").pack(anchor="w", padx=18, pady=(12, 5))
+        pips = tk.Frame(tier_panel, bg="#111724")
+        pips.pack(fill=tk.X, padx=18, pady=(0, 13))
+        tier_pips = []
+        for level in range(1, 6):
+            pip = tk.Label(pips, text=f"  +{level}  ", font=("Consolas", 10, "bold"), fg="#667086", bg="#20283a", padx=6, pady=7)
+            pip.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=(0 if level == 1 else 4, 0))
+            tier_pips.append(pip)
+
+        comparison = tk.Frame(detail_body, bg=self.SURFACE_ALT)
+        comparison.pack(fill=tk.X, pady=9)
+        current_card = tk.Frame(comparison, bg="#0b1019", highlightbackground=self.BORDER, highlightthickness=1)
+        current_card.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        tk.Label(current_card, text="CURRENT", font=("Segoe UI", 8, "bold"), fg="#77859d", bg="#0b1019").pack(pady=(15, 4))
+        current_lbl = tk.Label(current_card, text="—", font=("Consolas", 21, "bold"), fg=self.TEXT, bg="#0b1019")
+        current_lbl.pack(pady=(0, 16))
+        tk.Label(comparison, text="➜", font=("Segoe UI Symbol", 22, "bold"), fg=self.GOLD, bg=self.SURFACE_ALT).pack(side=tk.LEFT, padx=18)
+        next_card = tk.Frame(comparison, bg="#10231f", highlightbackground="#345e51", highlightthickness=1)
+        next_card.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
+        tk.Label(next_card, text="NEXT TIER", font=("Segoe UI", 8, "bold"), fg=self.GREEN, bg="#10231f").pack(pady=(15, 4))
+        next_lbl = tk.Label(next_card, text="—", font=("Consolas", 21, "bold"), fg=self.GREEN, bg="#10231f")
+        next_lbl.pack(pady=(0, 16))
+        gain_lbl = tk.Label(detail_body, text="", font=("Segoe UI", 9, "bold"), fg=self.GREEN, bg=self.SURFACE_ALT)
+        gain_lbl.pack(anchor="e", pady=(3, 0))
+
+        def show_item(_event=None):
+            selection = equipment_list.curselection()
+            if not selection or selection[0] >= len(visible_items):
                 return
-            if not weapon.upgrade_weapon():
-                self.player.add_coins(current_cost)
+            item = visible_items[selection[0]]
+            selected_item["item"] = item
+            equipped = item is self.player.equipped_weapon or item is self.player.equipped_armor
+            kind = "ARMOR" if item.is_armor else "WEAPON"
+            stat = item.stat_label()
+            current, upgraded = item.current_power(), item.next_upgrade_power()
+            type_lbl.config(text=f"{kind}  •  {item.rarity.upper()}  •  {'EQUIPPED' if equipped else 'IN PACK'}", fg=RARITY_COLORS.get(item.rarity, self.GOLD))
+            name_lbl.config(text=f"{item.item_name}  {item.forge_label()}")
+            trait_lbl.config(text=f"{item.attributes}  •  Base {item.base_power():.1f} {stat}")
+            current_lbl.config(text=f"{current:.1f} {stat}")
+            next_lbl.config(text=f"{upgraded:.1f} {stat}" if not item.at_max_upgrade else "FORGE LIMIT")
+            gain_lbl.config(text=f"NEXT GAIN  +{upgraded - current:.1f} {stat}" if not item.at_max_upgrade else "MASTERWORK COMPLETE")
+            for index, pip in enumerate(tier_pips, start=1):
+                active = index <= min(item.upgrade_level, item.max_upgrade_level)
+                pip.config(bg="#8b6829" if active else "#20283a", fg="#ffffff" if active else "#667086")
+            cost = item.upgrade_cost()
+            can_afford = cost is not None and self.player.coins >= cost
+            if item.is_legacy_upgrade:
+                cost_lbl.config(text=f"LEGACY ITEM  •  PRESERVED ABOVE +{item.max_upgrade_level}", fg=self.GOLD)
+                button_text = "LEGACY FORGE LIMIT"
+            elif item.at_max_upgrade:
+                cost_lbl.config(text=f"MASTERWORK  •  MAXIMUM TIER +{item.max_upgrade_level}", fg=self.GOLD)
+                button_text = "FORGE LIMIT REACHED"
+            else:
+                shortfall = max(0, cost - self.player.coins)
+                cost_lbl.config(text=f"COST  {cost} G" if can_afford else f"COST  {cost} G  •  NEED {shortfall} G", fg=self.GOLD if can_afford else self.RED)
+                button_text = f"FORGE {kind} TO +{item.upgrade_level + 1}"
+            forge_btn.config(text=button_text, state=tk.NORMAL if can_afford else tk.DISABLED, bg=self.GOLD if can_afford else "#252b37", fg="#171008" if can_afford else self.MUTED)
+
+        def refresh_list(preferred=None):
+            current = preferred or selected_item["item"]
+            mode = filter_name.get()
+            visible_items[:] = [item for item in equipment if mode == "ALL" or (mode == "WEAPONS" and not item.is_armor) or (mode == "ARMOR" and item.is_armor)]
+            equipment_list.delete(0, tk.END)
+            for item in visible_items:
+                marker = "◆" if item is self.player.equipped_weapon or item is self.player.equipped_armor else " "
+                kind = "A" if item.is_armor else "W"
+                equipment_list.insert(tk.END, f" {marker} {kind}  {item.item_name[:20]:<20} {item.forge_label():>3}  {item.current_power():>5.1f}")
+            index = next((i for i, item in enumerate(visible_items) if item is current), 0)
+            if visible_items:
+                equipment_list.selection_set(index)
+                equipment_list.activate(index)
+                equipment_list.see(index)
+                show_item()
+            else:
+                selected_item["item"] = None
+                type_lbl.config(text=f"NO {mode}", fg=self.MUTED)
+                name_lbl.config(text="Nothing on this forge rack")
+                trait_lbl.config(text="Choose another equipment filter.")
+                current_lbl.config(text="—")
+                next_lbl.config(text="—")
+                gain_lbl.config(text="")
+                cost_lbl.config(text="NO EQUIPMENT SELECTED", fg=self.MUTED)
+                for pip in tier_pips:
+                    pip.config(bg="#20283a", fg="#667086")
+                forge_btn.config(text="SELECT EQUIPMENT", state=tk.DISABLED, bg="#252b37", fg=self.MUTED)
+
+        def choose_filter(name):
+            filter_name.set(name)
+            for label, button in filter_buttons.items():
+                selected = label == name
+                button.config(bg="#8b6829" if selected else "#18202e", fg="#ffffff" if selected else self.MUTED)
+            refresh_list()
+
+        for label in ("ALL", "WEAPONS", "ARMOR"):
+            button = tk.Button(filters, text=label, command=lambda value=label: choose_filter(value), bg="#18202e", fg=self.MUTED, activebackground="#8b6829", activeforeground="#ffffff", relief=tk.FLAT, bd=0, font=("Segoe UI", 8, "bold"), padx=10, pady=7)
+            button.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=2)
+            filter_buttons[label] = button
+
+        def upgrade_selected():
+            item = selected_item["item"]
+            if not item:
                 return
-            self.append_text(f"The blacksmith forges {weapon.item_name} to {weapon.forge_label()} and {weapon.additional_damage:.1f} damage.", "reward")
+            cost = item.upgrade_cost()
+            if cost is None or not self.player.spend_coins(cost):
+                show_item()
+                return
+            if not item.upgrade_equipment():
+                self.player.add_coins(cost)
+                show_item()
+                return
+            stat = item.stat_label()
+            self.player.save_to_file()
+            self.append_text(f"The blacksmith raises {item.item_name} to {item.forge_label()}: {item.current_power():.1f} {stat}.", "reward")
+            audio_manager.play_sound("ui_select")
             self.update_stats()
             self._pulse_label(self.gold_header_lbl, "#ffffff")
-            self.show_toast("WEAPON UPGRADED", self.GOLD)
-            window.destroy()
+            self.show_toast(f"{('ARMOR' if item.is_armor else 'WEAPON')} FORGED  •  {item.forge_label()}", self.GOLD)
+            funds_lbl.config(text=f"◆ {self.player.coins} G")
+            refresh_list(item)
 
-        button = self._modal_button(content, "FORGE WEAPON" if cost is not None else "FORGE LIMIT REACHED", upgrade, self.GOLD, "#c99a3e")
-        button.config(state=tk.NORMAL if can_afford else tk.DISABLED, bg=self.GOLD if can_afford else "#252b37", fg="#171008" if can_afford else self.MUTED)
+        forge_btn.config(command=upgrade_selected)
+        equipment_list.bind("<<ListboxSelect>>", show_item)
+        equipment_list.bind("<Double-Button-1>", lambda _event: upgrade_selected())
+        funds_lbl.config(text=f"◆ {self.player.coins} G")
+        choose_filter("ALL")
 
     def visit_shop(self):
         window, content = self._modal("THE MERCHANT", "Equipment and supplies for the road ahead.", "760x540")
@@ -999,7 +1193,8 @@ class GamePanel(tk.Frame):
                 equipped = "\n\nCurrently equipped." if item is self.player.equipped_armor else ""
                 current = getattr(getattr(self.player, "equipped_armor", None), "defense_bonus", 0.0)
                 comparison = f"\nCompared to equipped: {item.defense_bonus - current:+.1f} DEF" if item is not self.player.equipped_armor else ""
-                return "ARMOR", f"{item.attributes}\n\nDefense +{item.defense_bonus:.1f}{comparison}{equipped}"
+                forge_note = f"\nForge tier {item.forge_label()} / +{item.max_upgrade_level}"
+                return "ARMOR", f"{item.attributes}\n\nDefense +{item.defense_bonus:.1f}{comparison}{forge_note}{equipped}"
             equipped = "\n\nCurrently equipped." if item is self.player.equipped_weapon else ""
             forge_note = f"\nForge tier {item.forge_label()} / +{item.max_upgrade_level}"
             current = getattr(getattr(self.player, "equipped_weapon", None), "additional_damage", 0.0)
@@ -1061,6 +1256,10 @@ class GamePanel(tk.Frame):
         difficulty = tk.StringVar(value=settings.get("difficulty"))
         text_speed = tk.StringVar(value=settings.get("text_speed"))
         display_mode = tk.StringVar(value="Fullscreen")
+        ui_scale = tk.StringVar(value=settings.get("ui_scale"))
+        color_vision = tk.StringVar(value=settings.get("color_vision"))
+        high_contrast = tk.BooleanVar(value=settings.get("high_contrast"))
+        reduce_flashes = tk.BooleanVar(value=settings.get("reduce_flashes"))
         reduce_animations = tk.BooleanVar(value=settings.get("reduce_animations"))
         music_volume = tk.DoubleVar(value=settings.get("music_volume") * 100)
         sfx_volume = tk.DoubleVar(value=settings.get("sfx_volume") * 100)
@@ -1082,7 +1281,7 @@ class GamePanel(tk.Frame):
 
         top_settings = tk.Frame(body, bg=self.SURFACE)
         top_settings.pack(fill=tk.X)
-        general = tk.LabelFrame(top_settings, text=" GAMEPLAY & ACCESSIBILITY ", bg=self.SURFACE_ALT, fg=self.GOLD, font=("Arial", 9, "bold"), bd=1, relief=tk.FLAT, width=400, height=150)
+        general = tk.LabelFrame(top_settings, text=" GAMEPLAY & ACCESSIBILITY ", bg=self.SURFACE_ALT, fg=self.GOLD, font=("Arial", 9, "bold"), bd=1, relief=tk.FLAT, width=440, height=230)
         general.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 6))
         general.pack_propagate(False)
 
@@ -1095,10 +1294,13 @@ class GamePanel(tk.Frame):
 
         option_row(0, "Difficulty", difficulty, ("Easy", "Normal", "Hard"))
         option_row(1, "Text speed", text_speed, ("Fast", "Normal", "Slow"))
-        option_row(2, "Display", display_mode, ("Fullscreen",))
-        tk.Checkbutton(general, text="Reduce movement, particles, and transition animations", variable=reduce_animations, bg=self.SURFACE_ALT, fg=self.TEXT, selectcolor="#253149", activebackground=self.SURFACE_ALT, activeforeground="#ffffff", font=("Arial", 9)).grid(row=3, column=0, columnspan=4, sticky="w", padx=12, pady=7)
+        option_row(2, "UI scale", ui_scale, ("100%", "115%", "130%"))
+        option_row(3, "Color vision", color_vision, ("Default", "Deuteranopia", "Tritanopia"))
+        tk.Checkbutton(general, text="High-contrast status colors", variable=high_contrast, bg=self.SURFACE_ALT, fg=self.TEXT, selectcolor="#253149", activebackground=self.SURFACE_ALT, activeforeground="#ffffff", font=("Arial", 9)).grid(row=4, column=0, columnspan=4, sticky="w", padx=12, pady=3)
+        tk.Checkbutton(general, text="Reduce flashes and screen shake", variable=reduce_flashes, bg=self.SURFACE_ALT, fg=self.TEXT, selectcolor="#253149", activebackground=self.SURFACE_ALT, activeforeground="#ffffff", font=("Arial", 9)).grid(row=5, column=0, columnspan=4, sticky="w", padx=12, pady=3)
+        tk.Checkbutton(general, text="Reduce movement, particles, and transitions", variable=reduce_animations, bg=self.SURFACE_ALT, fg=self.TEXT, selectcolor="#253149", activebackground=self.SURFACE_ALT, activeforeground="#ffffff", font=("Arial", 9)).grid(row=6, column=0, columnspan=4, sticky="w", padx=12, pady=3)
 
-        audio = tk.LabelFrame(top_settings, text=" AUDIO VOLUME ", bg="#171426", fg=self.PURPLE, font=("Arial", 10, "bold"), bd=1, relief=tk.FLAT, width=420, height=150)
+        audio = tk.LabelFrame(top_settings, text=" AUDIO VOLUME ", bg="#171426", fg=self.PURPLE, font=("Arial", 10, "bold"), bd=1, relief=tk.FLAT, width=420, height=230)
         audio.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=(6, 0))
         audio.pack_propagate(False)
 
@@ -1143,6 +1345,8 @@ class GamePanel(tk.Frame):
             settings.save({
                 "difficulty": difficulty.get(), "text_speed": text_speed.get(),
                 "display_mode": display_mode.get(), "reduce_animations": reduce_animations.get(),
+                "ui_scale": ui_scale.get(), "color_vision": color_vision.get(),
+                "high_contrast": high_contrast.get(), "reduce_flashes": reduce_flashes.get(),
                 "music_volume": music_volume.get() / 100.0, "sfx_volume": sfx_volume.get() / 100.0,
                 "keybindings": clean_keys,
             })
@@ -1238,7 +1442,7 @@ class GamePanel(tk.Frame):
                 ("Merchant\n", "heading"),
                 ("The merchant sells weapons, armor, and healing supplies. Select merchandise to compare its effect and price before buying.\n", "body"),
                 ("Blacksmith\n", "heading"),
-                ("The blacksmith advances weapons through five forge tiers. Each tier adds 15% of base damage, and costs rise with tier, base strength, and rarity. Legacy weapons above +5 keep their damage but cannot be upgraded further.\n", "body"),
+                ("The Ember & Anvil workshop can improve any owned weapon or armor. Select gear from the rack, compare its next stat, and forge repeatedly without leaving. Each of five tiers adds 15% of base damage or defense; costs rise with tier, base strength, and rarity.\n", "body"),
             ],
             "CONTROLS": [
                 ("CONTROL REFERENCE\n", "title"),
@@ -1387,6 +1591,7 @@ class GamePanel(tk.Frame):
             self.show_toast(hint.upper(), self.RED)
             return
         if button:
+            audio_manager.play_sound("ui_select")
             original = button.cget("bg")
             flash = getattr(button, "hover_color", "#405173")
             button.config(bg=flash)
@@ -1403,6 +1608,7 @@ class GamePanel(tk.Frame):
                 self.encounter_monster()
             elif roll <= 43:
                 self.resolve_exploration_event()
+            self.after(180, lambda: self._show_tutorial("exploration", "SEARCH THE UNKNOWN", "Choose Explore when you want a higher chance of battles, treasure, landmarks, merchants, and quest materials."))
         elif command == "Explore":
             self.append_text(f"You search the surroundings of {self.location_name}.", "travel")
             roll = random.randint(1, 100)

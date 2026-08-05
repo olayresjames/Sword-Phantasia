@@ -30,6 +30,10 @@ DEFAULT_SETTINGS = {
     "music_volume": 0.65,
     "sfx_volume": 0.80,
     "display_mode": "Fullscreen",
+    "ui_scale": "100%",
+    "color_vision": "Default",
+    "high_contrast": False,
+    "reduce_flashes": False,
     "reduce_animations": False,
     "keybindings": DEFAULT_KEYBINDINGS,
 }
@@ -57,6 +61,10 @@ def validate_settings(data):
         "music_volume": _volume(source.get("music_volume"), DEFAULT_SETTINGS["music_volume"]),
         "sfx_volume": _volume(source.get("sfx_volume"), DEFAULT_SETTINGS["sfx_volume"]),
         "display_mode": "Fullscreen",
+        "ui_scale": source.get("ui_scale") if source.get("ui_scale") in ("100%", "115%", "130%") else "100%",
+        "color_vision": source.get("color_vision") if source.get("color_vision") in ("Default", "Deuteranopia", "Tritanopia") else "Default",
+        "high_contrast": bool(source.get("high_contrast", False)),
+        "reduce_flashes": bool(source.get("reduce_flashes", False)),
         "reduce_animations": bool(source.get("reduce_animations", False)),
         "keybindings": clean_keys,
     }
@@ -107,15 +115,43 @@ def apply_fullscreen(window):
     """Use one borderless fullscreen presentation across every game surface."""
     try:
         window.attributes("-fullscreen", True)
-        return
     except (tk.TclError, AttributeError, NameError):
+        try:
+            window.state("zoomed")
+        except Exception:
+            width = window.winfo_screenwidth()
+            height = window.winfo_screenheight()
+            window.geometry(f"{width}x{height}+0+0")
+    apply_accessibility(window)
+    try:
+        from input_manager import enable_controller_navigation
+        enable_controller_navigation(window)
+    except (ImportError, tk.TclError):
         pass
     try:
-        window.state("zoomed")
-    except Exception:
-        width = window.winfo_screenwidth()
-        height = window.winfo_screenheight()
-        window.geometry(f"{width}x{height}+0+0")
+        from screen_manager import screen_manager
+        screen_manager.register(window)
+    except (ImportError, tk.TclError):
+        pass
+
+
+def apply_accessibility(window):
+    factor = {"100%": 1.0, "115%": 1.15, "130%": 1.30}.get(settings.get("ui_scale"), 1.0)
+    try:
+        system_scale = max(1.0, window.winfo_fpixels("1i") / 72.0)
+        window.tk.call("tk", "scaling", system_scale * factor)
+    except (tk.TclError, TypeError, ValueError):
+        pass
+
+
+def accessible_color(role, fallback):
+    palettes = {
+        "Deuteranopia": {"danger": "#ff8c42", "success": "#55c7d9", "mana": "#6ba5ff", "special": "#d69cff"},
+        "Tritanopia": {"danger": "#ef5b78", "success": "#62d49b", "mana": "#4fc3c8", "special": "#f0a6ca"},
+    }
+    if settings.get("high_contrast"):
+        return {"danger": "#ff6b6b", "success": "#75f0b0", "mana": "#78c6ff", "special": "#e0b0ff"}.get(role, fallback)
+    return palettes.get(settings.get("color_vision"), {}).get(role, fallback)
 
 
 def apply_display_mode(window, mode=None):

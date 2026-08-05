@@ -41,6 +41,7 @@ class Character:
         self.materials = {}
         self.discovered_landmarks = []
         self.story_choices = []
+        self.tutorial_flags = []
         self.inventory_limit = INVENTORY_SLOT_LIMIT
         self.inventory_cleanup_summary = None
         self.loaded_from_backup = None
@@ -149,7 +150,7 @@ class Character:
 
     def to_dict(self):
         return {
-            "save_version": 5,
+            "save_version": 6,
             "name": self.name,
             "level": self.level,
             "max_hp": self.max_hp,
@@ -166,6 +167,7 @@ class Character:
             "materials": self.materials,
             "discovered_landmarks": self.discovered_landmarks,
             "story_choices": self.story_choices,
+            "tutorial_flags": self.tutorial_flags,
             "equipped_weapon": self.equipped_weapon.to_dict() if self.equipped_weapon else None,
             "equipped_armor": getattr(self, 'equipped_armor').to_dict() if getattr(self, 'equipped_armor', None) else None
         }
@@ -226,6 +228,7 @@ class Character:
         char.materials = data.get("materials", {})
         char.discovered_landmarks = data.get("discovered_landmarks", [])
         char.story_choices = data.get("story_choices", [])
+        char.tutorial_flags = data.get("tutorial_flags", []) if isinstance(data.get("tutorial_flags", []), list) else []
         char.inventory = [Item.from_dict(item_data) for item_data in data.get("inventory", [])]
         equipped_data = data.get("equipped_weapon")
         if equipped_data:

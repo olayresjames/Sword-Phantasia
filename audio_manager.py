@@ -17,8 +17,17 @@ class AudioManager:
         "skill": "assets/audio/skill.mp3",
         "damage": "assets/audio/damage.mp3",
         "level_up": "assets/audio/level_up.mp3",
+        "ui_select": "assets/audio/ui_select.wav",
+        "victory": "assets/audio/victory.wav",
     }
-    MUSIC_FILES = {"battle": "assets/audio/bgm_battle.mp3"}
+    MUSIC_FILES = {
+        "battle": "assets/audio/bgm_battle.mp3",
+        "menu": "assets/audio/bgm_menu.wav",
+        "region_frontier": "assets/audio/amb_frontier.wav",
+        "region_mosswood": "assets/audio/amb_mosswood.wav",
+        "region_crypt": "assets/audio/amb_crypt.wav",
+        "region_throne": "assets/audio/amb_throne.wav",
+    }
 
     def __init__(self):
         self.available = False

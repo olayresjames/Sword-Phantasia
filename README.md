@@ -6,19 +6,19 @@ A Python-based Role-Playing Game (RPG) featuring a graphical user interface buil
 * **Graphical Interface:** Engaging Tkinter-based UI for battles, main menus, shopping, and inventory management.
 * **Character Progression:** Gain experience points from defeating monsters to level up your hero and increase max HP.
 * **Class Skill Trees:** Play as a Vanguard, Ranger, or Berserker and unlock class abilities at levels 1, 4, 7, and 10.
-* **Tactical Turn-Based Combat:** Read telegraphed enemy intents, exploit heavy attacks with skills, defend to recover MP, manage skill cooldowns, and adapt to escalating boss phases.
+* **Tactical Turn-Based Combat:** Read icon-coded enemy intents, exploit heavy attacks with skills, defend to recover MP, manage skill cooldowns, and adapt to escalating boss phases and named-enemy signature moves.
 * **Regions & Quests:** Progress through the Frontier Plains, Mosswood Wilds, Ashen Crypt, and Primordial Throne while completing persistent story quests.
-* **Dynamic Exploration:** Discover treasures, materials, landmarks, NPC choices, shrines, traps, and wandering regional merchants while traveling.
+* **Dynamic Exploration:** Discover treasures, materials, landmarks, NPC choices, shrines, traps, and wandering regional merchants, with discoveries reflected in each regional scene.
 * **Varied Objectives:** Complete gathering, discovery, survival, special-combat, choice-driven, and monster-hunting quests.
 * **Regional Loot:** Discover distinct weapons, armor, consumables, and rare treasures in every region, with improved drop rates from ascended enemies.
 * **Region Champions:** Complete each regional quest to challenge Tideheart Behemoth, Thornlord Grak, and the Ashen Bonewyrm before confronting Demon King Koji.
 * **Postgame Mastery:** Continue beyond level 10 with rising EXP requirements, stronger enemy variants, and class-skill mastery upgrades at levels 12 and 15.
 * **Clean Inventory System:** Stack consumables, compare gear against equipped stats, sort by type and rarity, and automatically recycle weak duplicate equipment into Metal Scrap within a 30-slot pack.
-* **Tiered Forging:** Improve weapons through five linear forge tiers with escalating prices based on tier, weapon strength, and rarity.
+* **Interactive Workshop:** Select any owned weapon or armor, preview its next stat increase, and forge multiple tiers without closing the smith. Five linear tiers use escalating prices based on tier, base strength, and rarity.
 * **Recoverable Defeat:** Retry, return to camp with a gold penalty, load your last save, or return to title instead of losing the entire session.
-* **Difficulty & Accessibility:** Choose Easy, Normal, or Hard; control text speed, audio levels, display mode, reduced animations, and remappable adventure/battle controls.
+* **Difficulty & Accessibility:** Choose Easy, Normal, or Hard; adjust UI scale, color-vision palettes, high-contrast status colors, reduced flashes/effects, and remappable adventure/battle controls. Gamepads are detected automatically when Pygame exposes one.
 * **Resilient Saves:** Validate save data, write atomically, retain two backups, and recover automatically if the primary save is damaged.
-* **Audio & Music:** Shared, cached, volume-aware sound effects and battle music with graceful silent fallback.
+* **Audio & Music:** Shared, cached, volume-aware sound effects, menu music, and region-specific ambience with graceful silent fallback.
 
 ## Prerequisites
 * Python 3.x
@@ -54,12 +54,26 @@ python tools/generate_monster_sprites.py
 python tools/generate_environment_art.py
 ```
 
+## Regenerating Offline Audio
+
+The menu theme, regional ambience, interface cue, and victory cue are deterministic WAV files generated with Python's standard library. No API key, download, or network connection is required:
+
+```bash
+python tools/generate_audio_assets.py
+```
+
 ## Automated Tests
 
 Run the leveling, quests, equipment/inventory, save recovery, and combat calculation tests with:
 
 ```bash
 python -m unittest discover -s tests -v
+```
+
+To validate responsive layout contracts at 1280x720, 1366x768, 1920x1080, and 2560x1440:
+
+```bash
+python tools/check_visual_layouts.py
 ```
 
 ## Building as an Executable (.exe)

@@ -33,24 +33,22 @@ class MainMenu:
 
     def __init__(self, root):
         self.root = root
-        self.root.withdraw()
+        self.root.deiconify()
         self.menu_images = {}
+        audio_manager.configure(settings.get("music_volume"), settings.get("sfx_volume"))
+        audio_manager.play_music("menu")
         self.display_menu()
 
     def display_menu(self):
-        self.menu_win = tk.Toplevel(self.root)
+        self.menu_win = self.root
+        for child in self.menu_win.winfo_children():
+            child.destroy()
         self.menu_win.title("Sword Phantasia")
         width = self.menu_win.winfo_screenwidth()
         height = self.menu_win.winfo_screenheight()
         self.menu_win.geometry(f"{width}x{height}+0+0")
         self.menu_win.resizable(False, False)
-        try:
-            self.menu_win.attributes("-fullscreen", True)
-        except tk.TclError:
-            try:
-                self.menu_win.state("zoomed")
-            except tk.TclError:
-                pass
+        apply_fullscreen(self.menu_win)
         self.menu_win.configure(bg=self.BG)
         self.menu_win.protocol("WM_DELETE_WINDOW", self.quit_game)
         self._center_window(self.menu_win, width, height)
@@ -203,7 +201,7 @@ class MainMenu:
     def load_game(self):
         player = Character.load_from_file()
         if player:
-            self.menu_win.destroy()
+            self._clear_menu()
             self.launch_game_window(player)
         else:
             alert(self.menu_win, "Load Game", "No valid save file was found.", accent=self.RED)
@@ -263,8 +261,13 @@ class MainMenu:
         weapon = Item(weapon_choice, data["attributes"], data["damage"])
         player.add_item(weapon, auto_salvage=False)
         player.equipped_weapon = weapon
-        self.menu_win.destroy()
+        self._clear_menu()
         self.launch_game_window(player)
+
+    def _clear_menu(self):
+        audio_manager.stop_music()
+        for child in self.root.winfo_children():
+            child.destroy()
 
     def _ask_hero_name(self):
         result = {"name": ""}

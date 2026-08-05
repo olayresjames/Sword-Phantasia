@@ -35,6 +35,28 @@ class EquipmentInventoryTests(unittest.TestCase):
         self.assertTrue(weapon.at_max_upgrade)
         self.assertFalse(weapon.upgrade_weapon())
 
+    def test_armor_uses_the_same_five_tier_forge_system(self):
+        armor = Item("Graveplate", "Runed", 0, is_armor=True, defense_bonus=15, rarity="Uncommon")
+        costs = []
+        for _ in range(MAX_UPGRADE_LEVEL):
+            costs.append(armor.upgrade_cost())
+            previous = armor.defense_bonus
+            self.assertTrue(armor.upgrade_armor())
+            self.assertGreater(armor.defense_bonus, previous)
+        self.assertTrue(all(later > earlier for earlier, later in zip(costs, costs[1:])))
+        self.assertEqual(armor.defense_bonus, 26.25)
+        self.assertTrue(armor.at_max_upgrade)
+        self.assertFalse(armor.upgrade_armor())
+        self.assertFalse(armor.upgrade_weapon())
+
+    def test_armor_forge_baseline_survives_serialization(self):
+        armor = Item("Mossguard Vest", "Reinforced", 0, is_armor=True, defense_bonus=8, rarity="Uncommon")
+        armor.upgrade_armor()
+        restored = Item.from_dict(armor.to_dict())
+        self.assertEqual(restored.base_defense, 8)
+        self.assertEqual(restored.upgrade_level, 1)
+        self.assertEqual(restored.next_upgrade_defense(), 10.4)
+
     def test_save_backup_and_recovery(self):
         with tempfile.TemporaryDirectory() as folder:
             path = os.path.join(folder, "save.json")

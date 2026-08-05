@@ -95,7 +95,10 @@ def show_guide(parent):
     tk.Label(copy, text="A concise field manual for your journey.", font=("Segoe UI", 10), fg=MUTED, bg="#0d131e").pack(anchor="w")
     tk.Button(header, text="×", command=window.destroy, bg="#0d131e", fg=MUTED, activebackground="#54232c", activeforeground="#ffffff", relief=tk.FLAT, bd=0, font=("Segoe UI", 21), cursor="hand2", padx=22).pack(side=tk.RIGHT, padx=20)
 
-    shell = tk.Frame(window, bg=BG, width=1160, height=660)
+    screen_width, screen_height = window.winfo_screenwidth(), window.winfo_screenheight()
+    shell_width = min(1160, max(900, int(screen_width * .88)))
+    shell_height = min(660, max(560, int((screen_height - 100) * .90)))
+    shell = tk.Frame(window, bg=BG, width=shell_width, height=shell_height)
     shell.place(relx=.5, rely=.54, anchor="center")
     shell.pack_propagate(False)
     navigation = tk.Frame(shell, bg=SURFACE, width=225, highlightbackground=BORDER, highlightthickness=1)
@@ -153,7 +156,7 @@ def show_guide(parent):
         "PROGRESSION": [
             ("PROGRESSION & SURVIVAL\n", "title"),
             ("Equipment\n", "heading"),
-            ("Weapons increase damage and armor reduces incoming attacks. Compare equipment in the inventory and upgrade strong weapons through five forge tiers.\n", "body"),
+            ("Weapons increase damage and armor reduces incoming attacks. At the Ember & Anvil workshop, select any owned equipment and raise its damage or defense through five forge tiers.\n", "body"),
             ("Defeat recovery\n", "heading"),
             ("A defeat is recoverable: retry, return to camp, load the latest save, or return to the title screen.\n", "body"),
             ("Postgame mastery\n", "heading"),

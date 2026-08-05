@@ -10,6 +10,9 @@ class EnemyIntent:
     multiplier: float = 1.0
     heal_fraction: float = 0.0
     guard_fraction: float = 0.0
+    icon: str = "⚔"
+    hits: int = 1
+    mana_damage: int = 0
 
 
 @dataclass(frozen=True)
@@ -61,6 +64,37 @@ ENEMY_INTENTS = {
         EnemyIntent("Void Rend", "attack", 5, multiplier=1.0),
         EnemyIntent("Eclipse Flare", "attack", 3, multiplier=1.45),
         EnemyIntent("Abyssal Ward", "guard", 2, guard_fraction=0.35),
+    ),
+}
+
+
+ENEMY_SIGNATURE_INTENTS = {
+    "Abyss Stalker": (
+        EnemyIntent("Shadow Pounce", "attack", 5, multiplier=0.72, icon="✦", hits=2),
+        EnemyIntent("Phase Prowl", "guard", 3, guard_fraction=0.55, icon="◇"),
+        EnemyIntent("Void Rend", "attack", 2, multiplier=1.55, icon="⚠"),
+    ),
+    "Hellfire Knight": (
+        EnemyIntent("Inferno Blade", "attack", 5, multiplier=1.25, icon="♨"),
+        EnemyIntent("Cinder Bulwark", "guard", 3, guard_fraction=0.48, icon="▣"),
+        EnemyIntent("Flame Cleave", "attack", 2, multiplier=1.70, icon="⚠", mana_damage=8),
+    ),
+    "Void Herald": (
+        EnemyIntent("Hex Bolt", "attack", 5, multiplier=0.95, icon="✧", mana_damage=12),
+        EnemyIntent("Abyssal Ward", "guard", 3, guard_fraction=0.60, icon="◈"),
+        EnemyIntent("Twin Eclipse", "attack", 2, multiplier=0.82, icon="☾", hits=2, mana_damage=6),
+    ),
+    "Crypt Archer": (
+        EnemyIntent("Grave Volley", "attack", 4, multiplier=0.70, icon="➶", hits=2),
+        EnemyIntent("Piercing Shot", "attack", 3, multiplier=1.55, icon="⚠"),
+    ),
+    "Bone Warden": (
+        EnemyIntent("Tower Guard", "guard", 4, guard_fraction=0.58, icon="▣"),
+        EnemyIntent("Shield Crush", "attack", 4, multiplier=1.35, icon="◆", mana_damage=6),
+    ),
+    "Bloodmoon Raider": (
+        EnemyIntent("Crescent Rush", "attack", 5, multiplier=0.68, icon="☾", hits=2),
+        EnemyIntent("Bloodmoon Cleave", "attack", 3, multiplier=1.65, icon="⚠"),
     ),
 }
 
@@ -221,9 +255,9 @@ def choose_monster(player):
     return random.choices(monsters, weights=[monster.weight for monster in monsters], k=1)[0]
 
 
-def choose_enemy_intent(family, hp_ratio=1.0):
-    intents = list(ENEMY_INTENTS.get(family, ENEMY_INTENTS["slime"]))
+def choose_enemy_intent(family, hp_ratio=1.0, monster_name=None):
+    intents = list(ENEMY_SIGNATURE_INTENTS.get(monster_name, ENEMY_INTENTS.get(family, ENEMY_INTENTS["slime"])))
     weights = [intent.weight for intent in intents]
-    if family == "demon" and hp_ratio <= 0.35:
+    if family == "demon" and hp_ratio <= 0.35 and monster_name not in ENEMY_SIGNATURE_INTENTS:
         weights = [2, 5, 4]
     return random.choices(intents, weights=weights, k=1)[0]
