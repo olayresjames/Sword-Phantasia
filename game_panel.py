@@ -1,9 +1,9 @@
 import random
 import sys
 import tkinter as tk
-from tkinter import messagebox, ttk
+from tkinter import ttk
 
-from battle_panel import BattlePanel, hero_sprite_path
+from battle_panel import BattlePanel, hero_sprite_path, resource_path
 from character import Character, experience_to_next_level
 from credits_panel import EndCreditsScreen
 from exploration import LANDMARK_LABELS, MATERIAL_LABELS, choose_exploration_event
@@ -14,6 +14,7 @@ from item import Item
 from loot_data import RARITY_COLORS, roll_region_loot
 from quests import QUESTS, completed_quest_keys, primary_objective, quest_objective_label, quest_progress, record_event
 from skills import CLASS_SKILLS, class_name, mastery_rank
+from ui_dialogs import alert, confirm
 from world_data import MINIBOSSES, MINIBOSS_QUESTS, REGIONS, all_minibosses_defeated, current_region, defeated_miniboss_keys, miniboss_for_region
 
 
@@ -29,6 +30,12 @@ class GamePanel(tk.Frame):
     GOLD = "#ffd166"
     RED = "#ff5363"
     PURPLE = "#a977e8"
+    REGION_ART = {
+        "frontier": "assets/environments/frontier.png",
+        "mosswood": "assets/environments/mosswood.png",
+        "crypt": "assets/environments/crypt.png",
+        "throne": "assets/environments/throne.png",
+    }
 
     def __init__(self, parent, player):
         super().__init__(parent, bg=self.BG)
@@ -40,6 +47,7 @@ class GamePanel(tk.Frame):
         self.btn_dict = {}
         self._toast_job = None
         self._bar_jobs = {}
+        self.region_images = {}
 
         self._configure_styles()
         self._build_header()
@@ -152,17 +160,34 @@ class GamePanel(tk.Frame):
         center = tk.Frame(parent, bg=self.BG)
         center.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=8)
 
-        area = tk.Frame(center, bg=self.SURFACE, height=112, highlightbackground=self.BORDER, highlightthickness=1)
-        area.pack(fill=tk.X, pady=(0, 10))
-        area.pack_propagate(False)
-        tk.Frame(area, bg=self.BLUE, width=5).pack(side=tk.LEFT, fill=tk.Y)
-        area_copy = tk.Frame(area, bg=self.SURFACE)
-        area_copy.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=18, pady=12)
-        tk.Label(area_copy, text="CURRENT AREA", font=("Arial", 8, "bold"), fg=self.MUTED, bg=self.SURFACE).pack(anchor="w")
-        self.location_lbl = tk.Label(area_copy, font=("Georgia", 20, "bold"), fg=self.TEXT, bg=self.SURFACE)
+        self.region_scene = tk.Canvas(center, height=226, bg="#090d16", highlightbackground=self.BORDER, highlightthickness=1)
+        self.region_scene.pack(fill=tk.X, pady=(0, 10))
+        self.region_scene.pack_propagate(False)
+        for key, path in self.REGION_ART.items():
+            try:
+                self.region_images[key] = tk.PhotoImage(file=resource_path(path))
+            except (tk.TclError, OSError):
+                self.region_images[key] = None
+        self.region_scene_image = self.region_scene.create_image(0, 0, anchor="center")
+        self.region_scene.create_rectangle(0, 0, 10, 10, fill="#080b13", outline="", stipple="gray50", tags="scene_overlay")
+        self.region_scene.bind("<Configure>", self._layout_region_scene)
+
+        area_copy = tk.Frame(self.region_scene, bg="#0b1019", highlightbackground=self.BLUE, highlightthickness=2)
+        area_copy.place(relx=.035, rely=.92, anchor="sw", relwidth=.76)
+        tk.Label(area_copy, text="CURRENT AREA", font=("Segoe UI", 9, "bold"), fg="#8ebfff", bg="#0b1019").pack(anchor="w", padx=16, pady=(10, 0))
+        self.location_lbl = tk.Label(area_copy, font=("Georgia", 20, "bold"), fg=self.TEXT, bg="#0b1019")
         self.location_lbl.pack(anchor="w")
-        self.location_desc_lbl = tk.Label(area_copy, font=("Arial", 9), fg="#aab4c8", bg=self.SURFACE)
-        self.location_desc_lbl.pack(anchor="w", pady=(2, 0))
+        self.location_lbl.pack_configure(padx=16)
+        self.location_desc_lbl = tk.Label(area_copy, font=("Segoe UI", 10), fg="#b7c2d5", bg="#0b1019", wraplength=500, justify=tk.LEFT)
+        self.location_desc_lbl.pack(anchor="w", padx=16, pady=(2, 11))
+
+        self.region_badge = tk.Label(self.region_scene, text="REGION I", font=("Segoe UI", 9, "bold"), fg="#10131c", bg=self.GOLD, padx=12, pady=6)
+        self.region_badge.place(relx=.965, rely=.08, anchor="ne")
+        self.scene_particles = [
+            self.region_scene.create_oval(0, 0, 3, 3, fill="#d8e5ff", outline="", tags="ambience")
+            for _ in range(10)
+        ]
+        self._scene_ambience_job = self.after(120, self._animate_region_ambience)
 
         objective = tk.Frame(center, bg="#171525", height=55, highlightbackground="#4b3968", highlightthickness=1)
         objective.pack(fill=tk.X, pady=(0, 10))
@@ -195,6 +220,39 @@ class GamePanel(tk.Frame):
         self.text_area.tag_configure("reward", foreground=self.GOLD)
         self.text_area.tag_configure("special", foreground="#c59af2")
 
+    def _layout_region_scene(self, event=None):
+        width = max(1, event.width if event else self.region_scene.winfo_width())
+        height = max(1, event.height if event else self.region_scene.winfo_height())
+        self.region_scene.coords(self.region_scene_image, width / 2, height / 2)
+        self.region_scene.coords("scene_overlay", 0, 0, width, height)
+
+    def _update_region_scene(self):
+        region = current_region(self.player)
+        image = self.region_images.get(region.key)
+        self.region_scene.itemconfigure(self.region_scene_image, image=image or "")
+        rank = list(REGIONS).index(region.key) + 1 if region.key in REGIONS else 1
+        self.region_badge.config(text=f"REGION {rank}  •  {region.name.upper()}")
+
+    def _animate_region_ambience(self):
+        if not self.winfo_exists():
+            return
+        width = max(100, self.region_scene.winfo_width())
+        height = max(100, self.region_scene.winfo_height())
+        colors = {
+            "frontier": ("#d5e4ff", "#96bd83"),
+            "mosswood": ("#8de0cb", "#b7f1d0"),
+            "crypt": ("#b994ff", "#ddd5ff"),
+            "throne": ("#ff8d75", "#c56dff"),
+        }.get(current_region(self.player).key, ("#d5e4ff", "#ffffff"))
+        for index, particle in enumerate(self.scene_particles):
+            x = random.randint(20, width - 20)
+            y = random.randint(20, max(25, int(height * .7)))
+            size = 2 + (index % 2)
+            self.region_scene.coords(particle, x, y, x + size, y + size)
+            self.region_scene.itemconfigure(particle, fill=colors[index % len(colors)], state=tk.HIDDEN if settings.get("reduce_animations") else tk.NORMAL)
+        delay = 2000 if settings.get("reduce_animations") else 900
+        self._scene_ambience_job = self.after(delay, self._animate_region_ambience)
+
     def _build_action_panel(self, parent):
         panel = tk.Frame(parent, bg=self.SURFACE, width=310, highlightbackground=self.BORDER, highlightthickness=1)
         panel.pack(side=tk.RIGHT, fill=tk.Y, padx=(8, 0))
@@ -205,17 +263,16 @@ class GamePanel(tk.Frame):
         movement.pack(padx=18)
         self._action_button(movement, "▲", "Walk Forward", 0, 1, "Move north along the road", compact=True)
         self._action_button(movement, "◀", "Walk Left", 1, 0, "Take the western path", compact=True)
-        self._action_button(movement, "●", "Explore", 1, 1, "Search the current area", compact=True, color="#7f2632", hover="#b63846")
+        self._action_button(movement, "✦", "Explore", 1, 1, "Search the current area", compact=True, color="#a42f40", hover="#d94556")
         self._action_button(movement, "▶", "Walk Right", 1, 2, "Take the eastern path", compact=True)
         self._action_button(movement, "▼", "Walk Back", 2, 1, "Return toward camp", compact=True)
 
         self._section_label(panel, "ADVENTURE")
         adventure = tk.Frame(panel, bg=self.SURFACE)
         adventure.pack(fill=tk.X, padx=13)
-        self._action_button(adventure, "EXPLORE", "Explore", 0, 0, "Search for monsters and discoveries", color="#7f2632", hover="#b63846")
-        self._action_button(adventure, "REST", "Rest", 0, 1, "Recover 10 HP and 10 MP", color="#27634d", hover="#328165")
-        self._action_button(adventure, "REGION MAP", "Region Map", 1, 0, "Travel between unlocked regions")
-        self._action_button(adventure, "QUEST LOG", "Quest Log", 1, 1, "Review objectives and rewards")
+        self._action_button(adventure, "REST", "Rest", 0, 0, "Recover 10 HP and 10 MP", color="#27634d", hover="#328165")
+        self._action_button(adventure, "REGION MAP", "Region Map", 0, 1, "Travel between unlocked regions")
+        self._action_button(adventure, "QUEST LOG", "Quest Log", 1, 0, "Review objectives and rewards", col_span=2)
 
         self._section_label(panel, "SETTLEMENT")
         settlement = tk.Frame(panel, bg=self.SURFACE)
@@ -263,7 +320,7 @@ class GamePanel(tk.Frame):
     def _section_label(self, parent, text):
         tk.Label(parent, text=text, font=("Arial", 9, "bold"), fg=self.MUTED, bg=self.SURFACE).pack(anchor="w", padx=18, pady=(18, 7))
 
-    def _action_button(self, parent, label, command, row, column, hint, compact=False, color="#263149", hover="#354461"):
+    def _action_button(self, parent, label, command, row, column, hint, compact=False, color="#263149", hover="#354461", col_span=1):
         button = tk.Button(
             parent,
             text=label,
@@ -275,10 +332,13 @@ class GamePanel(tk.Frame):
             disabledforeground="#667087",
             relief=tk.FLAT,
             bd=0,
-            font=("Arial", 13 if compact else 10, "bold"),
+            font=("Segoe UI", 13 if compact else 10, "bold"),
             cursor="hand2",
             width=4 if compact else 10,
             pady=10 if compact else 11,
+            highlightthickness=2,
+            highlightbackground=color,
+            highlightcolor=self.GOLD,
         )
         button.base_color = color
         button.hover_color = hover
@@ -286,7 +346,7 @@ class GamePanel(tk.Frame):
         button.default_hint = hint
         button.bind("<Enter>", self._on_action_hover)
         button.bind("<Leave>", self._on_action_leave)
-        button.grid(row=row, column=column, sticky="nsew", padx=4, pady=4)
+        button.grid(row=row, column=column, columnspan=col_span, sticky="nsew", padx=4, pady=4)
         parent.grid_columnconfigure(column, weight=1)
         self.btn_dict.setdefault(command, button)
         return button
@@ -308,7 +368,7 @@ class GamePanel(tk.Frame):
     def _utility_button(self, parent, text, command, danger=False, side=tk.LEFT):
         base = "#54232c" if danger else self.SURFACE_ALT
         hover = "#7d303d" if danger else "#253149"
-        button = tk.Button(parent, text=text, command=lambda: self.action_performed(command), bg=base, fg=self.TEXT, activebackground=hover, activeforeground="#ffffff", relief=tk.FLAT, bd=0, font=("Arial", 9, "bold"), cursor="hand2", padx=17, pady=9)
+        button = tk.Button(parent, text=text, command=lambda: self.action_performed(command), bg=base, fg=self.TEXT, activebackground=hover, activeforeground="#ffffff", relief=tk.FLAT, bd=0, font=("Segoe UI", 9, "bold"), cursor="hand2", padx=17, pady=9, highlightthickness=2, highlightbackground=base, highlightcolor=self.GOLD)
         button.base_color = base
         button.hover_color = hover
         button.bind("<Enter>", lambda event: event.widget.config(bg=event.widget.hover_color) if event.widget["state"] != tk.DISABLED else None)
@@ -369,6 +429,7 @@ class GamePanel(tk.Frame):
         self.armor_lbl.config(text=armor.item_name if armor else "None")
         self.location_lbl.config(text=self.location_name)
         self.location_desc_lbl.config(text=self.location_description)
+        self._update_region_scene()
 
         equippables = [item for item in self.player.inventory if not getattr(item, "is_consumable", False)]
         self._set_button_state("Equip", bool(equippables), "No equipment available")
@@ -561,7 +622,7 @@ class GamePanel(tk.Frame):
             updates, completions = self._resolve_story_choice(event)
 
         elif event.kind == "shrine":
-            pray = messagebox.askyesno(event.title, f"{event.description}\n\nCommune with the shrine?", parent=self)
+            pray = confirm(self, event.title, f"{event.description}\n\nCommune with the shrine?", confirm_text="COMMUNE", accent=self.PURPLE)
             if pray:
                 hp_before, mana_before = self.player.hp, self.player.mana
                 self.player.hp = min(self.player.max_hp, self.player.hp + max(25, self.player.max_hp // 4))
@@ -571,7 +632,7 @@ class GamePanel(tk.Frame):
                 self.append_text("You leave the shrine undisturbed.", "system")
 
         elif event.kind == "trap":
-            disarm = messagebox.askyesno(event.title, f"{event.description}\n\nAttempt to disarm it for materials?", parent=self)
+            disarm = confirm(self, event.title, f"{event.description}\n\nAttempt to disarm it for materials?", confirm_text="DISARM", accent=self.GOLD)
             if disarm and random.randint(1, 100) <= 65:
                 self.append_text("You disarm the trap and recover its rare components.", "success")
                 updates, completions = self._gather_material(event.target)
@@ -589,7 +650,7 @@ class GamePanel(tk.Frame):
             rarity_factor = {"Common": 1.0, "Uncommon": 1.3, "Rare": 1.7, "Epic": 2.2, "Legendary": 3.0}.get(item.rarity, 1.0)
             region_index = tuple(REGIONS).index(region.key)
             price = int(round((20 + region_index * 20) * rarity_factor / 5.0) * 5)
-            buy = messagebox.askyesno(event.title, f"{event.description}\n\n{item.rarity} {item.item_name} — {price} gold\n\nPurchase it?", parent=self)
+            buy = confirm(self, event.title, f"{event.description}\n\n{item.rarity} {item.item_name} — {price} gold\n\nPurchase it?", confirm_text=f"BUY  •  {price} G", accent=self.GOLD)
             if buy and self.player.spend_coins(price):
                 self.player.add_item(item)
                 self.append_text(f"You purchase {item.item_name} for {price} gold.", "reward")
@@ -616,7 +677,7 @@ class GamePanel(tk.Frame):
             "free_spirit": "Break the binding sigil and release the spirit?",
             "spare_shade": "Spare the shade and hear its secret?",
         }
-        accepted = messagebox.askyesno(event.title, f"{event.description}\n\n{prompts.get(event.target, 'Offer your help?')}", parent=self)
+        accepted = confirm(self, event.title, f"{event.description}\n\n{prompts.get(event.target, 'Offer your help?')}", confirm_text="OFFER HELP", accent=self.GREEN)
         decision = "aid" if accepted else "refuse"
         self.player.story_choices.append(f"{event.target}:{decision}")
         if accepted:
@@ -660,7 +721,7 @@ class GamePanel(tk.Frame):
         self._pulse_label(self.mana_lbl, self.GREEN)
 
     def show_region_map(self):
-        window, content = self._modal("REGION MAP", "Travel across the realm as your strength grows.", "760x520")
+        window, content = self._modal("REGION MAP", "Travel across the realm as your strength grows.", "840x620")
         regions = tuple(REGIONS.values())
         body = tk.Frame(content, bg=self.SURFACE)
         body.pack(fill=tk.BOTH, expand=True, padx=22, pady=22)
@@ -668,14 +729,28 @@ class GamePanel(tk.Frame):
         listbox.pack(side=tk.LEFT, fill=tk.BOTH, padx=(0, 10))
         details = tk.Frame(body, bg=self.SURFACE_ALT, width=390)
         details.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=(10, 0))
+        # Reserve the action area before packing variable-height region details.
+        # This guarantees that the travel button cannot be pushed below the window.
+        action_footer = tk.Frame(details, bg="#111724", highlightbackground=self.BORDER, highlightthickness=1)
+        action_footer.pack(side=tk.BOTTOM, fill=tk.X)
+        travel_btn = self._modal_button(action_footer, "SELECT REGION", lambda: travel(), self.BLUE, "#3d8fd7")
+        travel_btn.config(state=tk.DISABLED)
         name_lbl = tk.Label(details, text="SELECT A REGION", wraplength=330, font=("Georgia", 20, "bold"), fg=self.TEXT, bg=self.SURFACE_ALT)
-        name_lbl.pack(padx=24, pady=(34, 8))
+        name_lbl.pack(padx=24, pady=(24, 6))
         level_lbl = tk.Label(details, text="", font=("Arial", 9, "bold"), fg=self.GOLD, bg=self.SURFACE_ALT)
         level_lbl.pack()
-        description_lbl = tk.Label(details, text="Choose a destination on the map.", wraplength=330, justify=tk.LEFT, font=("Arial", 10), fg=self.MUTED, bg=self.SURFACE_ALT)
-        description_lbl.pack(padx=26, pady=20)
-        travel_btn = self._modal_button(details, "SELECT REGION", lambda: travel(), self.BLUE, "#3d8fd7")
-        travel_btn.config(state=tk.DISABLED)
+        map_previews = {
+            key: image.subsample(3, 3) for key, image in self.region_images.items() if image
+        }
+        preview_lbl = tk.Label(details, bg="#0b1019", highlightbackground=self.BORDER, highlightthickness=1)
+        preview_lbl.pack(padx=24, pady=(12, 8))
+        description_frame = tk.Frame(details, bg=self.SURFACE_ALT)
+        description_frame.pack(fill=tk.BOTH, expand=True, padx=(24, 12), pady=(2, 12))
+        description_lbl = tk.Text(description_frame, wrap=tk.WORD, state=tk.DISABLED, bg=self.SURFACE_ALT, fg=self.MUTED, font=("Segoe UI", 10), relief=tk.FLAT, bd=0, highlightthickness=0, padx=2, pady=2, spacing1=2, spacing3=4)
+        description_scroll = tk.Scrollbar(description_frame, command=description_lbl.yview, bg=self.SURFACE_ALT, troughcolor="#0b1019", relief=tk.FLAT)
+        description_lbl.configure(yscrollcommand=description_scroll.set)
+        description_scroll.pack(side=tk.RIGHT, fill=tk.Y)
+        description_lbl.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
         for region in regions:
             if self.player.current_region == region.key:
@@ -695,10 +770,14 @@ class GamePanel(tk.Frame):
             current = self.player.current_region == region.key
             name_lbl.config(text=region.name)
             level_lbl.config(text=f"UNLOCK LEVEL  {region.unlock_level}")
+            preview_lbl.config(image=map_previews.get(region.key, ""))
             monsters = ", ".join(monster.name for monster in region.monsters) or "Demon King Koji"
             champion = MINIBOSSES.get(region.key)
             champion_text = f"\n\nREGION CHAMPION\n{champion.name}" if champion else ""
-            description_lbl.config(text=f"{region.description}\n\nENCOUNTERS\n{monsters}{champion_text}")
+            description_lbl.config(state=tk.NORMAL)
+            description_lbl.delete("1.0", tk.END)
+            description_lbl.insert(tk.END, f"{region.description}\n\nENCOUNTERS\n{monsters}{champion_text}")
+            description_lbl.config(state=tk.DISABLED)
             if current:
                 travel_btn.config(text="CURRENT REGION", state=tk.DISABLED, bg="#252b37")
             elif not unlocked:
@@ -723,6 +802,11 @@ class GamePanel(tk.Frame):
 
         listbox.bind("<<ListboxSelect>>", on_select)
         listbox.bind("<Double-Button-1>", lambda _event: travel())
+        current_index = next((index for index, region in enumerate(regions) if region.key == self.player.current_region), 0)
+        listbox.selection_set(current_index)
+        listbox.activate(current_index)
+        listbox.see(current_index)
+        on_select()
 
     def show_quest_log(self):
         window, content = self._modal("QUEST LOG", "Track the battles shaping the fate of the realm.", "800x550")
@@ -1048,13 +1132,13 @@ class GamePanel(tk.Frame):
         def save_changes():
             clean_keys = {action: value.get().strip() for action, value in key_vars.items()}
             if any(not value or len(value) > 12 for value in clean_keys.values()):
-                messagebox.showerror("Invalid controls", "Each control needs a key name of 1 to 12 characters.", parent=window)
+                alert(window, "Invalid Controls", "Each control needs a key name of 1 to 12 characters.", accent=self.RED)
                 return
             action_names = list(labels)
             adventure = [clean_keys[action].lower() for action in action_names[:9]]
             battle = [clean_keys[action].lower() for action in action_names[9:]]
             if len(adventure) != len(set(adventure)) or len(battle) != len(set(battle)):
-                messagebox.showerror("Duplicate controls", "Controls on the same screen must use different keys.", parent=window)
+                alert(window, "Duplicate Controls", "Controls on the same screen must use different keys.", accent=self.RED)
                 return
             settings.save({
                 "difficulty": difficulty.get(), "text_speed": text_speed.get(),
@@ -1363,11 +1447,7 @@ class GamePanel(tk.Frame):
             self.quit_game()
 
     def return_to_title(self, parent=None):
-        confirmed = messagebox.askyesno(
-            "Return to Title?",
-            "Return to the title screen? Unsaved progress will be lost.",
-            parent=parent or self,
-        )
+        confirmed = confirm(parent or self, "Return to Title?", "Return to the title screen? Unsaved progress will be lost.", confirm_text="RETURN TO TITLE", accent=self.RED, danger=True)
         if not confirmed:
             return
         root = self.winfo_toplevel()
@@ -1378,11 +1458,7 @@ class GamePanel(tk.Frame):
         MainMenu(root)
 
     def quit_game(self, parent=None):
-        confirmed = messagebox.askyesno(
-            "Leave Sword Phantasia?",
-            "Quit the game? Unsaved progress will be lost.",
-            parent=parent or self,
-        )
+        confirmed = confirm(parent or self, "Leave Sword Phantasia?", "Quit the game? Unsaved progress will be lost.", confirm_text="QUIT GAME", accent=self.RED, danger=True)
         if confirmed:
             self.winfo_toplevel().destroy()
 
@@ -1404,6 +1480,11 @@ class GamePanel(tk.Frame):
             except tk.TclError:
                 pass
         self._bar_jobs.clear()
+        if getattr(self, "_scene_ambience_job", None):
+            try:
+                self.after_cancel(self._scene_ambience_job)
+            except tk.TclError:
+                pass
         super().destroy()
 
     def challenge_final_boss(self):
@@ -1417,11 +1498,7 @@ class GamePanel(tk.Frame):
             remaining = 3 - len(defeated_miniboss_keys(self.player))
             self.show_toast(f"DEFEAT {remaining} REGION CHAMPION{'S' if remaining != 1 else ''}", self.GOLD)
             return
-        choice = messagebox.askyesno(
-            "The Primordial Throne",
-            "Demon King Koji awaits beyond this point.\n\nBegin the final battle?",
-            parent=self,
-        )
+        choice = confirm(self, "The Primordial Throne", "Demon King Koji awaits beyond this point.\n\nBegin the final battle?", confirm_text="ENTER THE THRONE", accent=self.PURPLE)
         if choice:
             self.fight_final_boss()
 
@@ -1430,11 +1507,7 @@ class GamePanel(tk.Frame):
         if not boss:
             self.show_toast("NO REGION CHAMPION AVAILABLE", self.RED)
             return
-        choice = messagebox.askyesno(
-            "Region Champion",
-            f"{boss.name} answers your challenge.\n\nChampion battles cannot be escaped. Begin?",
-            parent=self,
-        )
+        choice = confirm(self, "Region Champion", f"{boss.name} answers your challenge.\n\nChampion battles cannot be escaped. Begin?", confirm_text="BEGIN CHALLENGE", accent=self.GOLD)
         if not choice:
             return
         self.append_text(f"{boss.name}, champion of this region, emerges!", "special")

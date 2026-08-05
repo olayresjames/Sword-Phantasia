@@ -45,12 +45,13 @@ A Python-based Role-Playing Game (RPG) featuring a graphical user interface buil
 5. Complete each regional quest and defeat its champion to break the three seals on the Primordial Throne.
 6. Reach Level 10 and travel to the Primordial Throne for the final challenge. Continue leveling afterward to hunt ascended enemies and reach Mastery III.
 
-## Regenerating Pixel-Art Sprites
+## Regenerating Pixel Art
 
-The monster and miniboss sprites are generated locally with Pillow and do not require an API key:
+Every named enemy has a unique generated sprite, including ascended enemies, while champions and Demon King Koji retain dedicated boss artwork. All monster sprites and five environment scenes are generated locally with Pillow. The process is deterministic and does not require an API key or network access:
 ```bash
 pip install pillow
 python tools/generate_monster_sprites.py
+python tools/generate_environment_art.py
 ```
 
 ## Automated Tests

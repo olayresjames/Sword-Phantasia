@@ -1,6 +1,5 @@
 import tkinter as tk
 from tkinter import ttk
-from tkinter import messagebox
 import random
 import sys
 import os
@@ -21,12 +20,34 @@ HERO_SPRITES = {
 
 MONSTER_SPRITES = {
     "Slime": "assets/monster-sprites/slime.png",
+    "Verdant Slime": "assets/monster-sprites/verdant-slime.png",
+    "King Slime": "assets/monster-sprites/king-slime.png",
+    "Prismatic Slime": "assets/monster-sprites/prismatic-slime.png",
+    "Tideborn Slime": "assets/monster-sprites/tideborn-slime.png",
     "Goblin": "assets/monster-sprites/goblin.png",
+    "Goblin Scout": "assets/monster-sprites/goblin-scout.png",
+    "Goblin Warchief": "assets/monster-sprites/goblin-warchief.png",
+    "Bloodmoon Raider": "assets/monster-sprites/bloodmoon-raider.png",
+    "Elder Warchief": "assets/monster-sprites/elder-warchief.png",
     "Skeleton": "assets/monster-sprites/skeleton.png",
+    "Crypt Archer": "assets/monster-sprites/crypt-archer.png",
+    "Bone Warden": "assets/monster-sprites/bone-warden.png",
+    "Gravebound Champion": "assets/monster-sprites/gravebound-champion.png",
+    "Deathless Warden": "assets/monster-sprites/deathless-warden.png",
+    "Abyss Stalker": "assets/monster-sprites/abyss-stalker.png",
+    "Hellfire Knight": "assets/monster-sprites/hellfire-knight.png",
+    "Void Herald": "assets/monster-sprites/void-herald.png",
     "Demon King Koji": "assets/monster-sprites/demon-king-koji.png",
     "Tideheart Behemoth": "assets/monster-sprites/tideheart-behemoth.png",
     "Thornlord Grak": "assets/monster-sprites/thornlord-grak.png",
     "Ashen Bonewyrm": "assets/monster-sprites/ashen-bonewyrm.png",
+}
+
+REGION_BACKGROUNDS = {
+    "frontier": "assets/environments/frontier.png",
+    "mosswood": "assets/environments/mosswood.png",
+    "crypt": "assets/environments/crypt.png",
+    "throne": "assets/environments/throne.png",
 }
 
 CRITICAL_CHANCE = COMBAT["critical_chance"]
@@ -375,8 +396,8 @@ class BattlePanel(tk.Toplevel):
         self.turn_badge = tk.Label(header, text="YOUR TURN", font=("Arial", 10, "bold"), fg="#08100c", bg="#55e6a5", padx=16, pady=7)
         self.turn_badge.pack(side=tk.RIGHT, padx=24, pady=12)
 
-        # Command deck sits at a stable height so it cannot clip the status cards.
-        ui_frame = tk.Frame(self, bg="#0d111c", height=250, highlightbackground="#30394f", highlightthickness=1)
+        # Keep the command deck compact so the arena remains the visual focus.
+        ui_frame = tk.Frame(self, bg="#0d111c", height=218, highlightbackground="#30394f", highlightthickness=1)
         ui_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=12, pady=(0, 12))
         ui_frame.pack_propagate(False)
 
@@ -384,11 +405,17 @@ class BattlePanel(tk.Toplevel):
         scene_frame = tk.Canvas(self, bg=self.scene_bg, highlightthickness=0)
         scene_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=True, padx=12, pady=10)
         self.scene_frame = scene_frame
+        self.arena_background = None
+        try:
+            self.arena_background = tk.PhotoImage(file=resource_path(REGION_BACKGROUNDS[region.key]))
+        except (tk.TclError, OSError, KeyError):
+            pass
+        self.arena_background_item = scene_frame.create_image(0, 0, image=self.arena_background or "", anchor="center", tags="backdrop")
         scene_frame.bind("<Configure>", self._draw_arena)
 
         # Enemy Info (Top Left)
         enemy_frame = tk.Frame(scene_frame, bg="#141a27", highlightbackground=self.accent, highlightthickness=2)
-        enemy_frame.place(relx=0.035, rely=0.06, relwidth=0.34, height=140)
+        enemy_frame.place(relx=0.035, rely=0.055, relwidth=0.305, height=126)
         tk.Label(enemy_frame, text="TARGET", font=("Arial", 8, "bold"), fg="#8e9ab5", bg="#141a27").pack(anchor="w", padx=16, pady=(10, 0))
         self.m_name_lbl = tk.Label(enemy_frame, font=("Arial", 17, "bold"), fg=self.accent, bg="#141a27")
         self.m_name_lbl.pack(anchor="w", padx=16)
@@ -400,7 +427,7 @@ class BattlePanel(tk.Toplevel):
         self.m_hp_percent_lbl.pack(side=tk.RIGHT)
         self.m_hp_bar = ttk.Progressbar(enemy_frame, style="Enemy.Horizontal.TProgressbar", orient="horizontal", mode="determinate")
         self.m_hp_bar.pack(fill=tk.X, padx=16, pady=(3, 4), ipady=3)
-        self.m_intent_lbl = tk.Label(enemy_frame, font=("Arial", 8, "bold"), fg="#ffd166", bg="#141a27")
+        self.m_intent_lbl = tk.Label(enemy_frame, font=("Segoe UI", 9, "bold"), fg="#ffd166", bg="#141a27")
         self.m_intent_lbl.pack(anchor="w", padx=16, pady=(0, 7))
         
         # Enemy Sprite (Center Right)
@@ -408,7 +435,7 @@ class BattlePanel(tk.Toplevel):
         monster_sprite = MONSTER_SPRITES.get(self.monster_sprite_key)
         if monster_sprite:
             try:
-                self.monster_sprite_image = tk.PhotoImage(file=resource_path(monster_sprite))
+                self.monster_sprite_image = tk.PhotoImage(file=resource_path(monster_sprite)).zoom(3, 3).subsample(2, 2)
             except (tk.TclError, OSError):
                 self.monster_sprite_image = None
 
@@ -420,7 +447,7 @@ class BattlePanel(tk.Toplevel):
         
         # Player Info (Bottom Right)
         player_frame = tk.Frame(scene_frame, bg="#141a27", highlightbackground="#45a7ff", highlightthickness=2)
-        player_frame.place(relx=0.965, rely=0.94, anchor="se", relwidth=0.355, height=154)
+        player_frame.place(relx=0.965, rely=0.945, anchor="se", relwidth=0.315, height=140)
         player_header = tk.Frame(player_frame, bg="#141a27")
         player_header.pack(fill=tk.X, padx=16, pady=(10, 2))
         self.p_name_lbl = tk.Label(player_header, font=("Arial", 16, "bold"), fg="#f3f6ff", bg="#141a27")
@@ -443,7 +470,7 @@ class BattlePanel(tk.Toplevel):
         sprite_path = hero_sprite_path(self.player)
         if sprite_path:
             try:
-                self.player_sprite_image = tk.PhotoImage(file=sprite_path)
+                self.player_sprite_image = tk.PhotoImage(file=sprite_path).zoom(3, 3).subsample(2, 2)
             except (tk.TclError, OSError):
                 self.player_sprite_image = None
 
@@ -455,7 +482,7 @@ class BattlePanel(tk.Toplevel):
         log_frame = tk.Frame(ui_frame, bg="#090c13", highlightbackground="#293149", highlightthickness=1)
         log_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(12, 6), pady=12)
         tk.Label(log_frame, text="COMBAT FEED", font=("Arial", 9, "bold"), fg="#8895b2", bg="#090c13").pack(anchor="w", padx=16, pady=(10, 3))
-        self.battle_log = tk.Text(log_frame, state=tk.DISABLED, wrap=tk.WORD, bg="#090c13", fg="#dce3f5", font=("Consolas", 12), relief=tk.FLAT, insertbackground="white", height=6, padx=14, pady=6, spacing1=3, spacing3=5)
+        self.battle_log = tk.Text(log_frame, state=tk.DISABLED, wrap=tk.WORD, bg="#090c13", fg="#dce3f5", font=("Consolas", 11), relief=tk.FLAT, insertbackground="white", height=5, padx=14, pady=6, spacing1=2, spacing3=4)
         self.battle_log.pack(fill=tk.BOTH, expand=True)
         self.battle_log.tag_configure("system", foreground="#aeb8d2")
         self.battle_log.tag_configure("player", foreground="#67dca5")
@@ -479,8 +506,9 @@ class BattlePanel(tk.Toplevel):
         def make_action_btn(text, command, r, c, col_span=1, color="#273149", hover="#35425f"):
             btn = tk.Button(btn_frame, text=text, command=command, bg=color, fg="#f7f8ff",
                             activebackground=hover, activeforeground="#ffffff", disabledforeground="#626b80",
-                            relief=tk.FLAT, bd=0, font=("Arial", 11, "bold"),
-                            cursor="hand2", padx=12, pady=10)
+                            relief=tk.FLAT, bd=0, font=("Segoe UI", 11, "bold"),
+                            cursor="hand2", padx=12, pady=10, highlightthickness=2,
+                            highlightbackground=color, highlightcolor="#ffd166")
             btn.base_color = color
             btn.hover_color = hover
             btn.bind("<Enter>", lambda e, b=btn: b.config(bg=b.hover_color) if b['state'] != tk.DISABLED else None)
@@ -537,30 +565,22 @@ class BattlePanel(tk.Toplevel):
         width, height = event.width, event.height
         self._scene_width = width
         self._scene_height = height
-        canvas.create_rectangle(0, int(height * 0.58), width, height, fill="#0c1320", outline="", tags="arena")
-        canvas.create_line(0, int(height * 0.58), width, int(height * 0.58), fill="#26314a", width=2, tags="arena")
-        for index in range(1, 7):
-            y = int(height * 0.58 + (height * 0.42 * index / 7))
-            inset = int(width * 0.04 * index)
-            canvas.create_line(inset, y, width - inset, y, fill="#151e30", tags="arena")
-        for x_ratio in (0.08, 0.20, 0.34, 0.66, 0.80, 0.92):
-            x = int(width * x_ratio)
-            canvas.create_line(width // 2, int(height * 0.58), x, height, fill="#111a2a", tags="arena")
-        canvas.create_oval(int(width * 0.64), int(height * 0.47), int(width * 0.88), int(height * 0.60), fill="#11192a", outline="#2a3652", tags="arena")
-        canvas.create_oval(int(width * 0.10), int(height * 0.80), int(width * 0.37), int(height * 0.94), fill="#11192a", outline="#2a3652", tags="arena")
-        for x_ratio, y_ratio, size in ((.45, .16, 2), (.52, .30, 1), (.89, .12, 2), (.43, .48, 1), (.57, .10, 1)):
-            x, y = int(width * x_ratio), int(height * y_ratio)
-            canvas.create_oval(x, y, x + size, y + size, fill="#536384", outline="", tags="arena")
-        canvas.tag_lower("arena")
+        canvas.coords(self.arena_background_item, width // 2, height // 2)
+        canvas.create_rectangle(0, 0, width, height, fill="#070a11", outline="", stipple="gray75", tags="arena")
+        canvas.create_line(0, int(height * .72), width, int(height * .72), fill="#59627a", width=1, tags="arena")
+        canvas.create_oval(int(width * 0.63), int(height * 0.46), int(width * 0.90), int(height * 0.64), fill="#10131c", outline="#697189", stipple="gray50", tags="arena")
+        canvas.create_oval(int(width * 0.08), int(height * 0.75), int(width * 0.38), int(height * 0.96), fill="#10131c", outline="#506079", stipple="gray50", tags="arena")
+        canvas.tag_lower("backdrop")
+        canvas.tag_raise("arena", "backdrop")
         if hasattr(self, "p_sprite") and hasattr(self, "m_sprite"):
             self._position_sprites()
             canvas.tag_raise("sprite")
 
     def _position_sprites(self):
-        player_x = self._scene_width * 0.23 + self._sprite_hit_shift["player"]
-        player_y = self._scene_height * (0.66 + self._idle_offset)
-        monster_x = self._scene_width * 0.76 + self._sprite_hit_shift["monster"]
-        monster_y = self._scene_height * (0.30 - self._idle_offset)
+        player_x = self._scene_width * 0.245 + self._sprite_hit_shift["player"]
+        player_y = self._scene_height * (0.69 + self._idle_offset)
+        monster_x = self._scene_width * 0.755 + self._sprite_hit_shift["monster"]
+        monster_y = self._scene_height * (0.31 - self._idle_offset)
         self.scene_frame.coords(self.p_sprite, player_x, player_y)
         self.scene_frame.coords(self.m_sprite, monster_x, monster_y)
 
@@ -588,12 +608,26 @@ class BattlePanel(tk.Toplevel):
             outline=color, width=2, tags="effect"
         )
         self.scene_frame.tag_lower(impact_ring, sprite)
+        slash_items = []
+        for offset in (-18, 0, 18):
+            slash_items.append(self.scene_frame.create_line(
+                x - 46 + offset, y + 40, x + 34 + offset, y - 42,
+                fill="#fff0bd", width=4, tags="effect"
+            ))
+        spark_items = []
+        for dx, dy in ((-58, -8), (52, -22), (-36, 48), (45, 38), (0, -62)):
+            spark_items.append(self.scene_frame.create_oval(
+                x + dx - 3, y + dy - 3, x + dx + 3, y + dy + 3,
+                fill=color, outline="", tags="effect"
+            ))
 
         def restore():
             if self.winfo_exists():
                 self._sprite_hit_shift[target] = 0
                 self._position_sprites()
                 self.scene_frame.delete(impact_ring)
+                for item in slash_items + spark_items:
+                    self.scene_frame.delete(item)
 
         self._animation_jobs.append(self.after(self._delay(110), restore))
         self._show_floating_text(f"-{max(0, int(damage))}", target, color)
@@ -634,10 +668,10 @@ class BattlePanel(tk.Toplevel):
         self.p_class_lbl.config(text=class_name(self.player).upper())
         self.p_hp_lbl.config(text=f"HP   {visible_hp} / {self.player.max_hp}")
         self.p_hp_bar['maximum'] = self.player.max_hp
-        self.p_hp_bar['value'] = visible_hp
+        self._tween_bar(self.p_hp_bar, visible_hp)
         self.p_mana_lbl.config(text=f"MP   {self.player.mana} / 100")
         self.p_mana_bar['maximum'] = 100
-        self.p_mana_bar['value'] = self.player.mana
+        self._tween_bar(self.p_mana_bar, self.player.mana)
         
         # Dynamic Buttons
         player_can_act = self.turn_state == "player"
@@ -661,6 +695,24 @@ class BattlePanel(tk.Toplevel):
         self.run_btn.config(state=tk.NORMAL if can_escape else tk.DISABLED, bg=self.run_btn.base_color if can_escape else "#191e2a")
         if self.is_boss or self.is_miniboss:
             self.run_btn.config(text="[R]  NO ESCAPE")
+
+    def _tween_bar(self, bar, target):
+        """Ease progress changes so damage and healing remain readable."""
+        start = float(bar["value"] or 0)
+        target = float(target)
+        if settings.get("reduce_animations") or abs(target - start) < 1:
+            bar["value"] = target
+            return
+
+        def step(index=1):
+            if not self.winfo_exists() or index > 7:
+                return
+            progress = index / 7
+            eased = 1 - (1 - progress) ** 2
+            bar["value"] = start + (target - start) * eased
+            self._animation_jobs.append(self.after(self._delay(24), lambda: step(index + 1)))
+
+        step()
 
     def _begin_player_action(self, label="PLAYER ACTION"):
         if self.turn_state != "player":
@@ -689,8 +741,10 @@ class BattlePanel(tk.Toplevel):
         self.m_hp_lbl.config(text=f"HP   {visible_hp} / {self.monster_max_hp}")
         self.m_hp_percent_lbl.config(text=f"{hp_percent}%")
         self.m_hp_bar['maximum'] = self.monster_max_hp
-        self.m_hp_bar['value'] = visible_hp
-        self.m_intent_lbl.config(text=f"INTENT  •  {self.enemy_intent.label.upper()}  [{self._intent_hint()}]")
+        self._tween_bar(self.m_hp_bar, visible_hp)
+        intent_colors = {"heal": "#67dca5", "guard": "#72baff", "steal": "#ffd166"}
+        intent_color = intent_colors.get(self.enemy_intent.kind, "#ff8993" if self._is_heavy_intent() else "#ffd166")
+        self.m_intent_lbl.config(text=f"NEXT  •  {self.enemy_intent.label.upper()}  [{self._intent_hint()}]", fg=intent_color)
 
     def _intent_hint(self):
         intent = self.enemy_intent
@@ -926,13 +980,19 @@ class BattlePanel(tk.Toplevel):
             
         item_win = tk.Toplevel(self)
         item_win.title("Use Item")
-        item_win.geometry("350x250")
-        item_win.configure(bg="#0a0a0a")
+        item_win.geometry("520x390")
+        item_win.configure(bg="#080b13")
         item_win.grab_set()
-        
-        tk.Label(item_win, text="Select an item to use:", font=("Arial", 12, "bold"), fg="#ffffff", bg="#0a0a0a").pack(pady=10)
-        listbox = tk.Listbox(item_win, bg="#141414", fg="#ffffff", font=("Consolas", 11), selectbackground="#7a0000")
-        listbox.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
+
+        header = tk.Frame(item_win, bg="#111724", height=82, highlightbackground="#343e56", highlightthickness=1)
+        header.pack(fill=tk.X)
+        header.pack_propagate(False)
+        tk.Label(header, text="FIELD SUPPLIES", font=("Georgia", 19, "bold"), fg="#f3f5ff", bg="#111724").pack(anchor="w", padx=22, pady=(15, 0))
+        tk.Label(header, text="Choose a restorative from your pack", font=("Segoe UI", 9, "bold"), fg="#67dca5", bg="#111724").pack(anchor="w", padx=22)
+        body = tk.Frame(item_win, bg="#080b13")
+        body.pack(fill=tk.BOTH, expand=True, padx=18, pady=18)
+        listbox = tk.Listbox(body, bg="#0d121c", fg="#e4e8f3", font=("Consolas", 11), selectbackground="#2d6c56", selectforeground="#ffffff", relief=tk.FLAT, activestyle="none")
+        listbox.pack(fill=tk.BOTH, expand=True)
         
         for item in consumables:
             listbox.insert(tk.END, f"{item.item_name} x{item.quantity} (Heals {item.heal_amount} HP)")
@@ -952,10 +1012,11 @@ class BattlePanel(tk.Toplevel):
                 item_win.destroy()
                 self._queue_monster_turn()
                 
-        use_btn = tk.Button(item_win, text="Use Item", command=on_use, bg="#7a0000", fg="white", activebackground="#b30000", activeforeground="white", relief=tk.FLAT, font=("Arial", 11, "bold"))
-        use_btn.bind("<Enter>", lambda e: e.widget.config(bg="#b30000"))
-        use_btn.bind("<Leave>", lambda e: e.widget.config(bg="#7a0000"))
-        use_btn.pack(pady=10, padx=20, fill=tk.X)
+        use_btn = tk.Button(item_win, text="USE SELECTED ITEM", command=on_use, bg="#2f765d", fg="white", activebackground="#439879", activeforeground="white", relief=tk.FLAT, bd=0, font=("Segoe UI", 10, "bold"), pady=12)
+        use_btn.bind("<Enter>", lambda e: e.widget.config(bg="#439879"))
+        use_btn.bind("<Leave>", lambda e: e.widget.config(bg="#2f765d"))
+        use_btn.pack(pady=(0, 18), padx=18, fill=tk.X)
+        listbox.bind("<Double-Button-1>", lambda _event: on_use())
 
     def monster_turn(self, defending=False):
         if not self.winfo_exists():

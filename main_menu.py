@@ -1,7 +1,6 @@
 import os
 import sys
 import tkinter as tk
-from tkinter import messagebox, simpledialog
 
 from battle_panel import resource_path
 from audio_manager import audio_manager
@@ -10,6 +9,7 @@ from game_panel import GamePanel
 from game_settings import apply_display_mode
 from game_settings import settings
 from item import Item
+from ui_dialogs import alert, confirm
 
 
 class MainMenu:
@@ -59,6 +59,10 @@ class MainMenu:
 
         self.showcase = tk.Canvas(self.menu_win, bg="#090e18", highlightthickness=0)
         self.showcase.grid(row=0, column=0, sticky="nsew")
+        try:
+            self.title_art = tk.PhotoImage(file=resource_path("assets/environments/title.png"))
+        except (tk.TclError, OSError):
+            self.title_art = None
         for weapon, data in self.WEAPONS.items():
             try:
                 self.menu_images[weapon] = tk.PhotoImage(file=resource_path(data["sprite"]))
@@ -112,29 +116,28 @@ class MainMenu:
             return (family, scaled, weight) if weight else (family, scaled)
 
         canvas.delete("all")
-        canvas.create_polygon(*points(0, 0, 570, 0, 570, 600, 405, 600, 175, 0), fill="#0e1626", outline="")
-        canvas.create_polygon(*points(0, 600, 0, 300, 300, 600), fill="#111b2c", outline="")
-        canvas.create_line(*points(48, 455, 510, 455), fill="#35415a", width=max(1, int(scale)))
-        canvas.create_line(*points(95, 466, 465, 466), fill="#202b3e", width=max(1, int(scale)))
-        for x, y, size in ((55, 70, 2), (160, 105, 1), (470, 88, 2), (410, 180, 1), (92, 265, 1), (510, 325, 2)):
-            x1, y1 = point(x, y)
-            canvas.create_oval(x1, y1, x1 + max(1, size * scale), y1 + max(1, size * scale), fill="#657596", outline="")
+        if self.title_art:
+            canvas.create_image(width / 2, height / 2, image=self.title_art)
+        else:
+            canvas.create_rectangle(0, 0, width, height, fill="#0e1626", outline="")
+        canvas.create_rectangle(*points(28, 35, 535, 225), fill="#080b13", outline="#3d4860", width=max(1, int(scale)), stipple="gray50")
+        canvas.create_rectangle(*points(0, 468, 570, 600), fill="#080b13", outline="", stipple="gray50")
 
         canvas.create_text(*point(52, 72), text="SWORD", anchor="w", font=font("Georgia", 42, "bold"), fill=self.TEXT)
         canvas.create_text(*point(52, 121), text="PHANTASIA", anchor="w", font=font("Georgia", 35, "bold"), fill=self.GOLD)
-        canvas.create_text(*point(55, 164), text="A REALM AT THE EDGE OF DARKNESS", anchor="w", font=font("Arial", 9, "bold"), fill=self.PURPLE)
-        canvas.create_text(*point(55, 192), text="Choose your weapon. Shape your legend.\nDefeat the primordial king.", anchor="nw", font=font("Arial", 11), fill="#aab5ca")
+        canvas.create_text(*point(55, 164), text="A REALM AT THE EDGE OF DARKNESS", anchor="w", font=font("Segoe UI", 9, "bold"), fill=self.PURPLE)
+        canvas.create_text(*point(55, 192), text="Choose your path. Break the three seals.\nFace the king beyond the veil.", anchor="nw", font=font("Segoe UI", 11), fill="#bdc8dc")
 
-        positions = {"Sword": (140, 370), "Bow": (285, 350), "Axe": (430, 370)}
+        positions = {"Sword": (125, 525), "Bow": (285, 525), "Axe": (445, 525)}
         for weapon, (x, y) in positions.items():
             x_pos, y_pos = point(x, y)
-            canvas.create_oval(*points(x - 66, y + 46, x + 66, y + 70), fill="#141f31", outline="#33425f", width=max(1, int(scale)))
+            canvas.create_oval(*points(x - 58, y + 37, x + 58, y + 56), fill="#111827", outline="#41506c", width=max(1, int(scale)))
             image = self.menu_images.get(weapon)
             if image:
                 canvas.create_image(x_pos, y_pos, image=image)
             else:
                 canvas.create_text(x_pos, y_pos, text=weapon[0], font=font("Georgia", 34, "bold"), fill=self.BLUE)
-        canvas.create_text(*point(55, 545), text="THREE PATHS  •  ONE DESTINY", anchor="w", font=font("Arial", 9, "bold"), fill="#66738c")
+            canvas.create_text(*point(x, 583), text=self.WEAPONS[weapon]["class"].upper(), anchor="center", font=font("Segoe UI", 8, "bold"), fill="#b9c5da")
 
     @staticmethod
     def _title_window_size(window):
@@ -150,7 +153,7 @@ class MainMenu:
         return max(640, width), max(400, height)
 
     def _menu_button(self, parent, text, command, color, hover):
-        button = tk.Button(parent, text=text, command=command, bg=color, fg=self.TEXT, activebackground=hover, activeforeground="#ffffff", relief=tk.FLAT, bd=0, font=("Arial", 11, "bold"), cursor="hand2", pady=13, anchor="w", padx=20)
+        button = tk.Button(parent, text=text, command=command, bg=color, fg=self.TEXT, activebackground=hover, activeforeground="#ffffff", relief=tk.FLAT, bd=0, font=("Segoe UI", 11, "bold"), cursor="hand2", pady=13, anchor="w", padx=20, highlightthickness=2, highlightbackground=color, highlightcolor=self.GOLD)
         button.base_color = color
         button.hover_color = hover
         button.bind("<Enter>", lambda event: event.widget.config(bg=event.widget.hover_color) if event.widget["state"] != tk.DISABLED else None)
@@ -176,14 +179,15 @@ class MainMenu:
         self.continue_btn.config(state=tk.NORMAL, text="CONTINUE", bg=self.continue_btn.base_color, fg=self.TEXT)
 
     def display_help(self):
-        messagebox.showinfo(
-            "Sword Phantasia — Guide & Controls",
+        alert(
+            self.menu_win,
+            "Guide & Controls",
             "ADVENTURE\n"
             "WASD / Arrow Keys — Move\nI — Inventory\nE — Equipment\nEscape — Options & full guide\n\n"
             "BATTLE\n"
             "A — Attack    D — Defend    I — Item\nS — Skill    R — Escape\n\n"
             "Defeat monsters to earn EXP and gold. Reach level 10 to challenge Demon King Koji.",
-            parent=self.menu_win,
+            accent=self.PURPLE,
         )
 
     def load_game(self):
@@ -192,7 +196,7 @@ class MainMenu:
             self.menu_win.destroy()
             self.launch_game_window(player)
         else:
-            messagebox.showinfo("Load Game", "No valid save file was found.", parent=self.menu_win)
+            alert(self.menu_win, "Load Game", "No valid save file was found.", accent=self.RED)
 
     def play_game(self):
         weapon_win = tk.Toplevel(self.menu_win)
@@ -236,7 +240,7 @@ class MainMenu:
         if not weapon_choice:
             return
 
-        player_name = simpledialog.askstring("Character Creation", "Name your hero:", parent=self.menu_win)
+        player_name = self._ask_hero_name()
         if not player_name or not player_name.strip():
             player_name = "Hero"
         player_name = player_name.strip()
@@ -247,6 +251,35 @@ class MainMenu:
         player.equipped_weapon = weapon
         self.menu_win.destroy()
         self.launch_game_window(player)
+
+    def _ask_hero_name(self):
+        result = {"name": ""}
+        window = tk.Toplevel(self.menu_win)
+        window.title("Name Your Hero")
+        window.geometry("500x270")
+        window.resizable(False, False)
+        window.configure(bg=self.BG)
+        window.transient(self.menu_win)
+        window.grab_set()
+        self._center_over_parent(window, self.menu_win, 500, 270)
+        header = tk.Frame(window, bg=self.SURFACE, height=86, highlightbackground=self.BORDER, highlightthickness=1)
+        header.pack(fill=tk.X)
+        header.pack_propagate(False)
+        tk.Label(header, text="NAME YOUR HERO", font=("Georgia", 21, "bold"), fg=self.TEXT, bg=self.SURFACE).pack(anchor="w", padx=26, pady=(17, 0))
+        tk.Label(header, text="This name will be written into the chronicles.", font=("Segoe UI", 9), fg=self.MUTED, bg=self.SURFACE).pack(anchor="w", padx=26)
+        name_var = tk.StringVar()
+        entry = tk.Entry(window, textvariable=name_var, bg="#0b1019", fg="#ffffff", insertbackground="#ffffff", relief=tk.FLAT, font=("Segoe UI", 15), justify=tk.CENTER, highlightthickness=2, highlightbackground=self.BORDER, highlightcolor=self.BLUE)
+        entry.pack(fill=tk.X, padx=34, pady=(28, 18), ipady=8)
+
+        def submit():
+            result["name"] = name_var.get().strip()
+            window.destroy()
+
+        tk.Button(window, text="BEGIN JOURNEY", command=submit, bg=self.RED, fg="#ffffff", activebackground="#f05a68", activeforeground="#ffffff", relief=tk.FLAT, bd=0, font=("Segoe UI", 10, "bold"), pady=11).pack(fill=tk.X, padx=34)
+        entry.bind("<Return>", lambda _event: submit())
+        entry.focus_set()
+        self.root.wait_window(window)
+        return result["name"]
 
     def launch_game_window(self, player):
         audio_manager.configure(settings.get("music_volume"), settings.get("sfx_volume"))
@@ -268,7 +301,7 @@ class MainMenu:
                 parent = menu
         except tk.TclError:
             pass
-        if messagebox.askyesno("Leave Sword Phantasia?", "Quit the game?", parent=parent):
+        if confirm(parent, "Leave Sword Phantasia?", "Quit the game?", confirm_text="QUIT GAME", accent=self.RED, danger=True):
             self.root.destroy()
 
     @staticmethod

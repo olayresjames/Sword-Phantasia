@@ -79,8 +79,8 @@ REGIONS = {
         },
         (
             MonsterSpec("Slime", "slime", "Slime", (30, 52), (5, 10), 5),
-            MonsterSpec("Verdant Slime", "slime", "Slime", (42, 65), (7, 12), 3),
-            MonsterSpec("King Slime", "slime", "Slime", (70, 95), (10, 15), 1),
+            MonsterSpec("Verdant Slime", "slime", "Verdant Slime", (42, 65), (7, 12), 3),
+            MonsterSpec("King Slime", "slime", "King Slime", (70, 95), (10, 15), 1),
         ),
     ),
     "mosswood": Region(
@@ -96,8 +96,8 @@ REGIONS = {
         },
         (
             MonsterSpec("Goblin", "goblin", "Goblin", (65, 88), (11, 17), 5),
-            MonsterSpec("Goblin Scout", "goblin", "Goblin", (72, 98), (13, 19), 3),
-            MonsterSpec("Goblin Warchief", "goblin", "Goblin", (105, 135), (17, 23), 1),
+            MonsterSpec("Goblin Scout", "goblin", "Goblin Scout", (72, 98), (13, 19), 3),
+            MonsterSpec("Goblin Warchief", "goblin", "Goblin Warchief", (105, 135), (17, 23), 1),
         ),
     ),
     "crypt": Region(
@@ -113,8 +113,8 @@ REGIONS = {
         },
         (
             MonsterSpec("Skeleton", "skeleton", "Skeleton", (105, 140), (18, 25), 5),
-            MonsterSpec("Crypt Archer", "skeleton", "Skeleton", (115, 150), (20, 27), 3),
-            MonsterSpec("Bone Warden", "skeleton", "Skeleton", (155, 195), (24, 32), 1),
+            MonsterSpec("Crypt Archer", "skeleton", "Crypt Archer", (115, 150), (20, 27), 3),
+            MonsterSpec("Bone Warden", "skeleton", "Bone Warden", (155, 195), (24, 32), 1),
         ),
     ),
     "throne": Region(
@@ -129,9 +129,9 @@ REGIONS = {
             "right": ("Crown of Ash", "A shattered balcony hangs above an endless abyss."),
         },
         (
-            MonsterSpec("Abyss Stalker", "void", "Demon King Koji", (230, 300), (30, 39), 5),
-            MonsterSpec("Hellfire Knight", "void", "Demon King Koji", (285, 355), (35, 44), 3, elite=True),
-            MonsterSpec("Void Herald", "void", "Demon King Koji", (350, 430), (40, 50), 1, elite=True),
+            MonsterSpec("Abyss Stalker", "void", "Abyss Stalker", (230, 300), (30, 39), 5),
+            MonsterSpec("Hellfire Knight", "void", "Hellfire Knight", (285, 355), (35, 44), 3, elite=True),
+            MonsterSpec("Void Herald", "void", "Void Herald", (350, 430), (40, 50), 1, elite=True),
         ),
     ),
 }
@@ -165,16 +165,16 @@ MINIBOSS_QUESTS = {
 
 ASCENDED_MONSTERS = {
     "frontier": (
-        MonsterSpec("Prismatic Slime", "slime", "Slime", (175, 225), (24, 31), 2, elite=True),
-        MonsterSpec("Tideborn Slime", "slime", "Slime", (220, 275), (27, 35), 1, elite=True),
+        MonsterSpec("Prismatic Slime", "slime", "Prismatic Slime", (175, 225), (24, 31), 2, elite=True),
+        MonsterSpec("Tideborn Slime", "slime", "Tideborn Slime", (220, 275), (27, 35), 1, elite=True),
     ),
     "mosswood": (
-        MonsterSpec("Bloodmoon Raider", "goblin", "Goblin", (235, 295), (31, 39), 2, elite=True),
-        MonsterSpec("Elder Warchief", "goblin", "Goblin", (290, 350), (35, 44), 1, elite=True),
+        MonsterSpec("Bloodmoon Raider", "goblin", "Bloodmoon Raider", (235, 295), (31, 39), 2, elite=True),
+        MonsterSpec("Elder Warchief", "goblin", "Elder Warchief", (290, 350), (35, 44), 1, elite=True),
     ),
     "crypt": (
-        MonsterSpec("Gravebound Champion", "skeleton", "Skeleton", (300, 370), (39, 48), 2, elite=True),
-        MonsterSpec("Deathless Warden", "skeleton", "Skeleton", (365, 445), (43, 53), 1, elite=True),
+        MonsterSpec("Gravebound Champion", "skeleton", "Gravebound Champion", (300, 370), (39, 48), 2, elite=True),
+        MonsterSpec("Deathless Warden", "skeleton", "Deathless Warden", (365, 445), (43, 53), 1, elite=True),
     ),
 }
 

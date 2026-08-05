@@ -1,7 +1,7 @@
 """Generate the battle monster sprites without external services."""
 
 from pathlib import Path
-from PIL import Image, ImageDraw
+from PIL import Image, ImageColor, ImageDraw
 
 
 SIZE = 64
@@ -216,6 +216,203 @@ def ashen_bonewyrm():
     save(image, "ashen-bonewyrm.png")
 
 
+def _variant(source_name, output_name, replacements, decorate=None):
+    """Create a crisp named-enemy variant from an existing generated sprite."""
+    image = Image.open(OUT_DIR / source_name).convert("RGBA")
+    color_map = {
+        ImageColor.getrgb(source)[:3]: ImageColor.getrgb(target)[:3]
+        for source, target in replacements.items()
+    }
+    pixels = []
+    for red, green, blue, alpha in image.getdata():
+        replacement = color_map.get((red, green, blue), (red, green, blue))
+        pixels.append((*replacement, alpha))
+    image.putdata(pixels)
+    if decorate:
+        decorate(ImageDraw.Draw(image))
+    image.save(OUT_DIR / output_name)
+
+
+def _slime_variants():
+    def leaf_crown(draw):
+        draw.polygon([(43, 43), (53, 24), (62, 43)], fill="#7ecb62", outline="#17131f")
+        draw.polygon([(63, 43), (76, 21), (82, 46)], fill="#9adc66", outline="#17131f")
+        draw.line((62, 45, 67, 25), fill="#d1ee83", width=3)
+
+    _variant("slime.png", "verdant-slime.png", {
+        "#289a98": "#4f9946", "#227b82": "#39753c", "#54cbb9": "#83c85b", "#8be4ce": "#b6e878",
+    }, leaf_crown)
+
+    def royal_crown(draw):
+        draw.polygon([(39, 46), (42, 21), (53, 35), (64, 15), (75, 35), (88, 21), (88, 48)], fill="#d7a536", outline="#17131f")
+        draw.rectangle((42, 43, 88, 50), fill="#9f6728", outline="#17131f", width=3)
+        for x, color in ((48, "#ff5967"), (64, "#72baff"), (80, "#b994ff")):
+            draw.rectangle((x, 38, x + 5, 43), fill=color)
+
+    _variant("slime.png", "king-slime.png", {
+        "#289a98": "#684fa0", "#227b82": "#493d79", "#54cbb9": "#9c7bd0", "#8be4ce": "#c9a8ed",
+    }, royal_crown)
+
+    def crystal_spikes(draw):
+        for points, color in (
+            ([(18, 72), (5, 53), (29, 61)], "#72baff"),
+            ([(39, 48), (46, 19), (57, 48)], "#ff7fb2"),
+            ([(74, 46), (86, 17), (92, 54)], "#b994ff"),
+            ([(104, 67), (123, 50), (112, 82)], "#67dca5"),
+        ):
+            draw.polygon(points, fill=color, outline="#17131f")
+
+    _variant("slime.png", "prismatic-slime.png", {
+        "#289a98": "#8b5eb5", "#227b82": "#5e478e", "#54cbb9": "#db79c5", "#8be4ce": "#f2b1e6",
+    }, crystal_spikes)
+
+    def tidal_fins(draw):
+        draw.polygon([(25, 70), (4, 55), (12, 86), (31, 92)], fill="#4db8d3", outline="#17131f")
+        draw.polygon([(103, 67), (125, 51), (117, 88), (99, 94)], fill="#4db8d3", outline="#17131f")
+        draw.arc((27, 91, 101, 121), 8, 172, fill="#b7eff4", width=4)
+
+    _variant("slime.png", "tideborn-slime.png", {
+        "#289a98": "#237dad", "#227b82": "#185780", "#54cbb9": "#4abbd0", "#8be4ce": "#94e6e5",
+    }, tidal_fins)
+
+
+def _goblin_variants():
+    def scout_gear(draw):
+        draw.polygon([(35, 39), (52, 15), (77, 14), (95, 40), (86, 59), (43, 58)], fill="#304f55", outline="#17131f")
+        draw.arc((72, 45, 126, 116), 76, 284, fill="#b4c6ba", width=5)
+        draw.line((100, 52, 99, 111), fill="#d7d0b6", width=2)
+
+    _variant("goblin.png", "goblin-scout.png", {"#684334": "#385d55", "#ba873e": "#6aa19a"}, scout_gear)
+
+    def war_helm(draw):
+        draw.polygon([(34, 47), (38, 19), (53, 27), (65, 10), (79, 28), (94, 18), (96, 49)], fill="#734038", outline="#17131f")
+        draw.polygon([(39, 27), (19, 8), (28, 37)], fill="#d8d0b6", outline="#17131f")
+        draw.polygon([(91, 27), (112, 7), (102, 39)], fill="#d8d0b6", outline="#17131f")
+        draw.line((93, 71, 119, 112), fill="#74452c", width=8)
+        draw.polygon([(97, 59), (119, 47), (126, 54), (119, 79), (105, 89), (95, 80)], fill="#c0c7c0", outline="#17131f")
+
+    _variant("goblin.png", "goblin-warchief.png", {"#684334": "#713a35", "#759e48": "#657f38"}, war_helm)
+
+    def moon_blades(draw):
+        draw.arc((2, 3, 126, 127), 205, 334, fill="#d94758", width=7)
+        draw.polygon([(91, 70), (119, 42), (126, 49), (106, 82), (95, 91), (87, 82)], fill="#e4c9c0", outline="#17131f")
+
+    _variant("goblin.png", "bloodmoon-raider.png", {
+        "#759e48": "#8d4342", "#668e42": "#7a383d", "#684334": "#4f2733", "#e1d56a": "#ff7c67",
+    }, moon_blades)
+
+    def elder_regalia(draw):
+        draw.polygon([(47, 68), (64, 91), (82, 67), (77, 99), (64, 112), (49, 98)], fill="#d8d0b6", outline="#17131f")
+        draw.line((104, 25, 104, 119), fill="#845b3b", width=7)
+        draw.ellipse((94, 13, 114, 32), fill="#b994ff", outline="#17131f", width=3)
+        draw.polygon([(39, 41), (48, 16), (62, 31), (76, 14), (91, 43)], fill="#6a4f72", outline="#17131f")
+
+    _variant("goblin.png", "elder-warchief.png", {"#759e48": "#77825b", "#668e42": "#68744f", "#684334": "#4b4052"}, elder_regalia)
+
+
+def _skeleton_variants():
+    def archer_gear(draw):
+        draw.arc((64, 28, 125, 121), 76, 282, fill="#a9845d", width=5)
+        draw.line((96, 36, 96, 114), fill="#d9d2bd", width=2)
+        draw.line((34, 70, 105, 73), fill="#b9c4cb", width=3)
+        draw.polygon([(110, 73), (100, 68), (101, 78)], fill="#d9d2bd")
+
+    _variant("skeleton.png", "crypt-archer.png", {"#4d365f": "#314b67", "#d7d0b6": "#c6c8bb"}, archer_gear)
+
+    def warden_shield(draw):
+        draw.polygon([(8, 54), (46, 44), (55, 64), (47, 108), (27, 120), (9, 103)], fill="#4d5668", outline="#17131f")
+        draw.polygon([(18, 61), (43, 55), (47, 66), (40, 99), (28, 108), (17, 97)], fill="#788293", outline="#17131f")
+        draw.line((31, 57, 31, 106), fill="#c5ad6a", width=4)
+
+    _variant("skeleton.png", "bone-warden.png", {"#4d365f": "#424a59", "#bfb69e": "#aeb5b7"}, warden_shield)
+
+    def champion_armor(draw):
+        draw.polygon([(39, 24), (47, 7), (64, 17), (82, 6), (91, 26)], fill="#a67b32", outline="#17131f")
+        draw.rectangle((39, 60, 88, 100), fill="#7a653d", outline="#17131f", width=3)
+        draw.line((48, 72, 79, 72), fill="#d8b85c", width=4)
+        draw.line((64, 61, 64, 99), fill="#d8b85c", width=4)
+
+    _variant("skeleton.png", "gravebound-champion.png", {"#4d365f": "#6a542e", "#d7d0b6": "#dfd0a0"}, champion_armor)
+
+    def deathless_aura(draw):
+        for x, y in ((12, 34), (108, 29), (7, 91), (114, 96)):
+            draw.polygon([(x, y + 14), (x - 5, y + 3), (x + 1, y - 10), (x + 8, y + 4)], fill="#7554bd", outline="#17131f")
+        draw.arc((3, 5, 124, 126), 210, 330, fill="#a977e8", width=4)
+        draw.line((92, 46, 116, 119), fill="#7e6c5b", width=6)
+        draw.arc((80, 31, 126, 73), 200, 350, fill="#d6d1df", width=6)
+
+    _variant("skeleton.png", "deathless-warden.png", {"#4d365f": "#30294f", "#d7d0b6": "#b8b2c4"}, deathless_aura)
+
+
+def abyss_stalker():
+    image, draw = canvas()
+    polygon(draw, [(7, 44), (18, 29), (30, 27), (39, 15), (47, 31), (57, 37), (54, 52), (39, 56), (20, 55)], "#27213b")
+    polygon(draw, [(24, 31), (18, 14), (34, 26)], "#3b2c55")
+    polygon(draw, [(40, 27), (48, 12), (51, 34)], "#3b2c55")
+    draw.rectangle((30, 34, 35, 38), fill="#c56dff")
+    draw.rectangle((42, 33, 47, 37), fill="#c56dff")
+    polygon(draw, [(9, 45), (1, 36), (5, 51), (19, 54)], "#392650")
+    draw.line((18, 53, 12, 62), fill="#17131f", width=5)
+    draw.line((47, 53, 54, 62), fill="#17131f", width=5)
+    draw.arc((45, 35, 67, 59), 230, 65, fill="#684398", width=3)
+    save(image, "abyss-stalker.png")
+
+
+def hellfire_knight():
+    image, draw = canvas()
+    polygon(draw, [(22, 22), (26, 9), (38, 6), (47, 15), (45, 31), (34, 38), (23, 31)], "#3f3440")
+    polygon(draw, [(25, 14), (33, 8), (42, 15), (43, 25), (26, 25)], "#69545a")
+    draw.rectangle((29, 18, 40, 21), fill="#ff6c45")
+    polygon(draw, [(18, 34), (31, 28), (45, 31), (52, 55), (15, 55)], "#4b3541")
+    draw.line((26, 35, 40, 53), fill="#a06a43", width=3)
+    draw.line((23, 54, 18, 62), fill="#76636a", width=5)
+    draw.line((44, 54, 50, 62), fill="#76636a", width=5)
+    draw.line((48, 34, 58, 57), fill="#6d452f", width=4)
+    polygon(draw, [(51, 38), (56, 18), (61, 31), (59, 46)], "#ff6b39")
+    polygon(draw, [(53, 31), (57, 10), (62, 25), (59, 39)], "#ffb13b", 1)
+    save(image, "hellfire-knight.png")
+
+
+def void_herald():
+    image, draw = canvas()
+    polygon(draw, [(14, 57), (20, 29), (27, 20), (39, 20), (47, 30), (54, 58)], "#332247")
+    polygon(draw, [(23, 24), (27, 8), (39, 8), (45, 25), (39, 34), (27, 34)], "#49315f")
+    draw.rectangle((27, 22, 32, 26), fill="#8a6de0")
+    draw.rectangle((36, 22, 41, 26), fill="#8a6de0")
+    draw.line((33, 35, 33, 56), fill="#a977e8", width=2)
+    draw.line((47, 34, 56, 61), fill="#785342", width=4)
+    ellipse(draw, (48, 6, 62, 20), "#7f4ac2", 1)
+    ellipse(draw, (52, 10, 58, 16), "#e5c7ff", 1)
+    for x, y in ((9, 23), (57, 32), (6, 49)):
+        draw.rectangle((x, y, x + 2, y + 2), fill="#b994ff")
+    save(image, "void-herald.png")
+
+
+def sprite_preview():
+    names = (
+        "slime", "verdant-slime", "king-slime", "prismatic-slime", "tideborn-slime",
+        "goblin", "goblin-scout", "goblin-warchief", "bloodmoon-raider", "elder-warchief",
+        "skeleton", "crypt-archer", "bone-warden", "gravebound-champion", "deathless-warden",
+        "abyss-stalker", "hellfire-knight", "void-herald", "tideheart-behemoth", "thornlord-grak",
+        "ashen-bonewyrm", "demon-king-koji",
+    )
+    columns, cell_width, cell_height = 5, 160, 154
+    rows = (len(names) + columns - 1) // columns
+    preview = Image.new("RGBA", (columns * cell_width, rows * cell_height), "#090d16")
+    draw = ImageDraw.Draw(preview)
+    for index, name in enumerate(names):
+        sprite = Image.open(OUT_DIR / f"{name}.png").convert("RGBA")
+        column, row = index % columns, index // columns
+        x = column * cell_width + (cell_width - sprite.width) // 2
+        y = row * cell_height + 4
+        preview.alpha_composite(sprite, (x, y))
+        label = name.replace("-", " ").upper()
+        box = draw.textbbox((0, 0), label)
+        text_width = box[2] - box[0]
+        draw.text((column * cell_width + (cell_width - text_width) // 2, row * cell_height + 134), label, fill="#c5cede")
+    preview.save(OUT_DIR / "monster-sprites-preview.png")
+
+
 if __name__ == "__main__":
     slime()
     goblin()
@@ -224,4 +421,11 @@ if __name__ == "__main__":
     tideheart_behemoth()
     thornlord_grak()
     ashen_bonewyrm()
+    _slime_variants()
+    _goblin_variants()
+    _skeleton_variants()
+    abyss_stalker()
+    hellfire_knight()
+    void_herald()
+    sprite_preview()
     print(f"Generated monster sprites in {OUT_DIR}")
